@@ -1,0 +1,41 @@
+gap_days,metric,group,numerator,denominator,value,note
+4,events,all,,,10548.0,rebuilt events
+4,event_wells,all,,,1191.0,wells with at least one event
+4,median_down_days,all,,,4.0,
+4,mean_down_days,all,,,10.896283655669322,
+4,total_down_days,all,,,114934.0,
+4,log_to_event_recall,all,1788,2333,0.7663951993141878,logged failures since 2025-07-01 with a rebuilt event starting within 7 days
+4,log_to_event_recall,Casing,1,1,1.0,
+4,log_to_event_recall,Other/Unknown,4,4,1.0,
+4,log_to_event_recall,Pump,210,343,0.6122448979591837,
+4,log_to_event_recall,Rods,1453,1774,0.8190529875986471,
+4,log_to_event_recall,Tubing,120,211,0.5687203791469194,
+4,event_to_log_precision,all,1653,2529,0.6536180308422301,rebuilt events since 2025-07-01 with a logged failure within 7 days
+4,unmatched_event_code,Downhole Equipment - Rods,357,876,0.4075342465753425,most common downtime code on events with no logged failure
+4,unmatched_event_code,Downhole Equipment - Well Torqued,171,876,0.1952054794520548,most common downtime code on events with no logged failure
+4,unmatched_event_code,Downhole Equipment - Pump,167,876,0.1906392694063927,most common downtime code on events with no logged failure
+4,unmatched_event_code,Downhole Equipment - Tubing Failure,98,876,0.11187214611872145,most common downtime code on events with no logged failure
+4,unmatched_event_code,Downhole Equipment - Unspecified,39,876,0.04452054794520548,most common downtime code on events with no logged failure
+4,unmatched_event_code,Downhole Equipment - Service Rig on Hole,38,876,0.04337899543378995,most common downtime code on events with no logged failure
+4,unmatched_event_code,Downhole Equipment - Gas-Locking/Lost Suction,3,876,0.003424657534246575,most common downtime code on events with no logged failure
+4,unmatched_event_code,Downhole Equipment - Loaded Up,1,876,0.001141552511415525,most common downtime code on events with no logged failure
+7,events,all,,,10082.0,rebuilt events
+7,event_wells,all,,,1191.0,wells with at least one event
+7,median_down_days,all,,,4.0,
+7,mean_down_days,all,,,11.399920650664551,
+7,total_down_days,all,,,114934.0,
+7,log_to_event_recall,all,1706,2333,0.7312473210458637,logged failures since 2025-07-01 with a rebuilt event starting within 7 days
+7,log_to_event_recall,Casing,1,1,1.0,
+7,log_to_event_recall,Other/Unknown,3,4,0.75,
+7,log_to_event_recall,Pump,201,343,0.5860058309037901,
+7,log_to_event_recall,Rods,1387,1774,0.7818489289740699,
+7,log_to_event_recall,Tubing,114,211,0.5402843601895735,
+7,event_to_log_precision,all,1569,2420,0.6483471074380165,rebuilt events since 2025-07-01 with a logged failure within 7 days
+7,unmatched_event_code,Downhole Equipment - Rods,351,851,0.41245593419506466,most common downtime code on events with no logged failure
+7,unmatched_event_code,Downhole Equipment - Well Torqued,164,851,0.1927144535840188,most common downtime code on events with no logged failure
+7,unmatched_event_code,Downhole Equipment - Pump,160,851,0.18801410105757932,most common downtime code on events with no logged failure
+7,unmatched_event_code,Downhole Equipment - Tubing Failure,99,851,0.11633372502937721,most common downtime code on events with no logged failure
+7,unmatched_event_code,Downhole Equipment - Unspecified,36,851,0.04230317273795535,most common downtime code on events with no logged failure
+7,unmatched_event_code,Downhole Equipment - Service Rig on Hole,35,851,0.041128084606345476,most common downtime code on events with no logged failure
+7,unmatched_event_code,Downhole Equipment - Gas-Locking/Lost Suction,3,851,0.0035252643948296123,most common downtime code on events with no logged failure
+7,unmatched_event_code,Downhole Equipment - Loaded Up,1,851,0.0011750881316098707,most common downtime code on events with no logged failure
