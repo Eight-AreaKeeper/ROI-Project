@@ -43,6 +43,11 @@ def payback_inputs():
 
 
 @st.cache_data
+def enriched_watchlist(oil_value):
+    return al.enrich_watchlist(watchlist(), runs(), events(), outputs()["cox_results"], model(), oil_value)
+
+
+@st.cache_data
 def well_daily(uwi, end):
     return al.well_daily(uwi, end)
 
@@ -55,6 +60,9 @@ PAGES = ["Overview", "What drives run life", "Is a workover worth it?", "Watchli
 
 d, wl = outputs(), watchlist()
 aliases = al.make_aliases(wl)
+# The oil value is set on the workover page but also prices the watchlist, so
+# it is kept outside the slider's own state, which is dropped on other pages.
+st.session_state.setdefault("oil_value", float(config.OIL_VALUE_PER_BBL))
 with st.sidebar:
     st.title("Run Life")
     page = st.radio("Page", PAGES, key="page")
@@ -94,7 +102,8 @@ elif page == "Is a workover worth it?":
     st.header("A workover pays back within a year on wells failing about 6+ times a year.")
     st.caption("A workover costs more than a rod-truck job but is followed by fewer failures; "
                "the payback depends on how often the well fails and what the lost oil is worth.")
-    oil = st.slider("Oil value, C$/bbl", 35.0, 70.0, float(config.OIL_VALUE_PER_BBL), key="oil")
+    oil = st.slider("Oil value, C$/bbl", 35.0, 70.0, st.session_state["oil_value"], key="oil")
+    st.session_state["oil_value"] = oil
     inputs = payback_inputs()
     st.metric("Break-even failure rate", f"{plots.break_even_rate(inputs, oil):.1f} failures/yr",
               help="Above this rate a workover's extra cost pays back within one year.")
@@ -111,16 +120,24 @@ elif page == "Watchlist":
                "given how long it has already run.")
     chart(plots.risk_distribution(wl, top_n=config.TOP_K))
 
-    f1, f2 = st.columns([2, 1])
+    oil = st.session_state["oil_value"]
+    ew = enriched_watchlist(oil)
+    f1, f2, f3 = st.columns([2, 1, 1])
     areas = f1.multiselect("Area", sorted(wl.area.dropna().unique()), key="areas")
     min_risk = f2.slider("Minimum 90-day risk", 0.0, 1.0, 0.0, 0.05, key="min_risk")
-    table = al.watchlist_table(wl, aliases, hide, areas, min_risk)
-    st.dataframe(table, hide_index=True, use_container_width=True,
-                 column_config={"risk_90": st.column_config.ProgressColumn(
-                     "90-day risk", format="%.2f", min_value=0.0, max_value=1.0)})
+    sort = f3.radio("Sort by", list(al.SORTS), horizontal=True, key="sort")
+    table = al.watchlist_table(ew, aliases, hide, areas, min_risk, sort)
+    money = st.column_config.NumberColumn(format="dollar")
+    st.dataframe(table, hide_index=True, use_container_width=True, column_config={
+        "risk_90": st.column_config.ProgressColumn("90-day risk", format="%.2f", min_value=0.0, max_value=1.0),
+        "expected cost, 90 days": money, "cost per failure": money,
+        "workover payback, yrs": st.column_config.NumberColumn(format="%.1f"),
+    })
+    st.markdown(f"**{al.top_summary(table)}**")
     unscored = int(wl.beyond_model_range.sum())
-    st.caption(f"{len(table):,} wells shown. {unscored} wells have run longer than the model has data for "
-               "and are not scored.")
+    st.caption(f"{len(table):,} wells shown. Costs at C${oil:.2f}/bbl (set on \"Is a workover worth it?\"). "
+               f"Expected cost = 90-day risk x cost of one failure (rod-truck repair + this well's usual lost oil). "
+               f"{unscored} wells have run longer than the model has data for and are not scored.")
     st.download_button("Download CSV", table.to_csv(index=False), "watchlist.csv", "text/csv")
 
     if len(table):

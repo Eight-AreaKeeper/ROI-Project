@@ -90,20 +90,110 @@ def show_id(uwi, aliases: dict[str, str], hide: bool):
 # --------------------------------------------------------------------------
 TABLE_COLUMNS = {
     "rank": "rank", "well": "well", "area": "area", "risk_90": "risk_90",
+    "expected_cost_90": "expected cost, 90 days", "cost_per_failure": "cost per failure",
+    "main_driver": "main driver", "suggested_action": "suggested action",
+    "workover_payback_yrs": "workover payback, yrs",
     "elapsed_prod_days": "elapsed producing days", "fails_prior_365": "failures in past year",
 }
+SORTS = {"expected cost": "expected_cost_90", "risk": "risk_90"}
 
 
 def watchlist_table(watchlist: pd.DataFrame, aliases: dict[str, str], hide: bool,
-                    areas: list[str] | None = None, min_risk: float = 0.0) -> pd.DataFrame:
-    """Scored wells, filtered, with the well column already aliased if IDs are hidden."""
+                    areas: list[str] | None = None, min_risk: float = 0.0,
+                    sort: str = "expected cost") -> pd.DataFrame:
+    """Scored wells, filtered and sorted, with the well column aliased if IDs are hidden.
+
+    `rank` stays the risk rank from the watchlist whatever the sort.
+    """
     w = watchlist[watchlist.risk_90.notna() & (watchlist.risk_90 >= min_risk)]
     if areas:
         w = w[w.area.isin(areas)]
-    w = w.sort_values("rank").assign(well=lambda d: show_id(d.uwi, aliases, hide))
-    t = w[list(TABLE_COLUMNS)].rename(columns=TABLE_COLUMNS)
+    w = (w.sort_values([SORTS[sort], "rank"], ascending=[False, True], kind="stable")
+          .assign(well=lambda d: show_id(d.uwi, aliases, hide)))
+    t = w[[c for c in TABLE_COLUMNS if c in w.columns]].rename(columns=TABLE_COLUMNS)
     t["rank"] = t["rank"].astype(int)
     return t.set_index(w.uwi.rename("uwi"))
+
+
+# Continuous features that can be a well's main driver, worded for the
+# direction that raises risk. Rod torque and previous downtime are left out:
+# neither is significant in the Cox model, so neither is quoted as a driver.
+DRIVER_LABELS = {
+    "fails_prior_365": "frequent recent failures",
+    "rpm_pre30": "high pump speed",
+    "wcut_pre30": "high water cut",
+    "oil_pre30": "high oil rate",
+    "prev_gap_days": "short previous run",
+    "disp": "large pump",
+    "util_pre30": "high pump utilisation",
+}
+NO_DRIVER = "no single driver"
+PAYBACK_ACTION_YEARS = 1.5
+HIGH_RISK = 0.7
+
+
+def open_run_features(watchlist: pd.DataFrame, runs: pd.DataFrame) -> pd.DataFrame:
+    """Every watchlist well's open run with all model features, in watchlist order."""
+    w = watchlist[["uwi", "run_start"]]
+    r = w.merge(runs, left_on=["uwi", "run_start"], right_on=["uwi", "start_d"], how="left", validate="1:1")
+    if r.start_d.isna().any():
+        raise ValueError("some watchlist rows have no matching run in runs.parquet")
+    return r
+
+
+def driver_contributions(bundle: dict, run_rows: pd.DataFrame) -> pd.DataFrame:
+    """Coefficient x standardised value per driver feature: each one's push on log-hazard."""
+    x = scoring.Prep.from_state(bundle).transform(run_rows)[list(DRIVER_LABELS)]
+    return x * bundle["model"].params_[list(DRIVER_LABELS)]
+
+
+def main_driver(contrib: pd.DataFrame) -> pd.Series:
+    """Label of the largest positive contribution per row, or NO_DRIVER if none is positive."""
+    top = contrib.idxmax(axis=1).map(DRIVER_LABELS)
+    return top.where(contrib.max(axis=1) > 0, NO_DRIVER)
+
+
+def expected_cost(risk: pd.Series, cost_per_failure: pd.Series) -> pd.Series:
+    return risk * cost_per_failure
+
+
+def suggest_action(row, rpm_top_quartile: float) -> str:
+    """First matching rule wins; the order is the order of priority."""
+    if not (row.workover or row.new_string) and row.workover_payback_yrs <= PAYBACK_ACTION_YEARS:
+        return f"At next failure: workover (pays back in {row.workover_payback_yrs:.1f} yr)"
+    if row.main_driver == DRIVER_LABELS["rpm_pre30"] and row.rpm_pre30 >= rpm_top_quartile:
+        return "Review pump speed"
+    if row.risk_90 >= HIGH_RISK:
+        return "Pre-plan rod-truck crew"
+    return "Monitor"
+
+
+def enrich_watchlist(watchlist: pd.DataFrame, runs: pd.DataFrame, events: pd.DataFrame,
+                     cox: pd.DataFrame, model: dict, oil_value: float) -> pd.DataFrame:
+    """Add cost per failure, expected 90-day cost, main driver, workover payback and an action."""
+    w = watchlist.copy()
+    inputs = plots.payback_inputs(runs, events, cox)
+    # A well's own lost oil per failure if it has history, else the fleet mean
+    # (the same mean the payback chart uses).
+    oil_m3 = w.uwi.map(events.groupby("uwi").lost_oil_m3.mean()).fillna(inputs["oil_m3_per_event"])
+    w["cost_per_failure"] = inputs["rodtruck_cost"] + oil_m3 * config.BBL_PER_M3 * oil_value
+    w["expected_cost_90"] = expected_cost(w.risk_90, w.cost_per_failure)
+
+    w["main_driver"] = main_driver(driver_contributions(model, open_run_features(w, runs))).to_numpy()
+    # A well with no failure in the past year is costed at one a year, the
+    # least it would take to trigger the workover being priced.
+    w["workover_payback_yrs"], _ = plots.payback_years(np.maximum(w.fails_prior_365, 1),
+                                                       oil_value=oil_value, **inputs)
+    rpm_q75 = w.rpm_pre30.quantile(0.75)
+    w["suggested_action"] = [suggest_action(r, rpm_q75) for r in w.itertuples()]
+    return w
+
+
+def top_summary(table: pd.DataFrame, k: int = config.TOP_K) -> str:
+    top = table.head(k)
+    n_wo = int(top["suggested action"].str.startswith("At next failure: workover").sum())
+    return (f"Top {len(top)} wells: ${top['expected cost, 90 days'].sum():,.0f} expected failure cost "
+            f"in the next {config.HORIZON_DAYS} days; {n_wo} flagged for a workover at next failure.")
 
 
 def well_run(watchlist: pd.DataFrame, runs: pd.DataFrame, uwi: str) -> pd.DataFrame:
