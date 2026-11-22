@@ -185,7 +185,7 @@ def main() -> pd.DataFrame:
     """)
     log = build_log(con)
     log_path = config.OUTPUTS / "cleaning_log.csv"
-    log.to_csv(log_path, index=False)
+    config.write_csv(log, log_path)
 
     print(log.to_string(index=False))
     print(f"clean: wrote {config.rel(config.DAILY_CLEAN)} and {config.rel(log_path)} in {time.time() - t0:.1f}s")

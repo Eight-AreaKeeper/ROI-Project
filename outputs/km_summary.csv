@@ -1,0 +1,27 @@
+group_var,group,n_runs,failures,median_prod_days,logrank_p
+fails_prior_365,0,1851,1556,134.0,0.0
+fails_prior_365,1,1817,1593,99.0,0.0
+fails_prior_365,2+,6696,6201,55.0,0.0
+rpm_quartile,"(0.999, 155.0]",2635,2297,91.0,0.0
+rpm_quartile,"(155.0, 243.0]",2497,2258,73.0,0.0
+rpm_quartile,"(243.0, 370.0]",2581,2358,62.0,0.0
+rpm_quartile,"(370.0, 679.0]",2546,2349,56.0,0.0
+water_cut_band,0.7-0.9,1847,1682,77.0,0.0
+water_cut_band,0.9+,7504,6792,64.0,0.0
+water_cut_band,<0.7,948,820,97.0,0.0
+repair_class,no linked job,1357,1216,70.0,0.0
+repair_class,rod truck only,5681,5301,52.0,0.0
+repair_class,workover,3326,2833,121.0,0.0
+area,Bellis,157,138,89.0,0.0
+area,Bodo East,711,644,62.0,0.0
+area,Bodo Main,49,44,250.0,0.0
+area,Bodo South,128,118,70.0,0.0
+area,Cactus Lake,4219,3758,89.0,0.0
+area,Cactus Lake North,61,50,97.0,0.0
+area,Cosine,776,713,56.0,0.0
+area,Court,923,838,73.0,0.0
+area,Druid Main,613,501,80.0,0.0
+area,Druid North East,263,230,85.0,0.0
+area,Manitou Lake,2,2,470.0,0.0
+area,Plover Lake Conventional,93,69,330.0,0.0
+area,Winter,2369,2245,47.0,0.0

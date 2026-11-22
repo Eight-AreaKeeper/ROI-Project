@@ -77,6 +77,46 @@ CURRENCY_LABEL = _get("CURRENCY_LABEL", "est., CAD assumed")
 CHECK_TOLERANCE = float(_get("CHECK_TOLERANCE", "0.01"))
 
 
+# Runs and features
+RUNS = WELLS_OUT / "runs.parquet"
+PRE_WINDOW_PROD_DAYS = int(_get("PRE_WINDOW_PROD_DAYS", "30"))
+FAILS_PRIOR_DAYS = int(_get("FAILS_PRIOR_DAYS", "365"))
+DISP_LOOKBACK_DAYS = int(_get("DISP_LOOKBACK_DAYS", "60"))
+JOB_LINK_DAYS_BEFORE = int(_get("JOB_LINK_DAYS_BEFORE", "3"))
+JOB_LINK_DAYS_AFTER = int(_get("JOB_LINK_DAYS_AFTER", "2"))
+
+# Model training and evaluation
+TIME_CUT = _get("TIME_CUT", "2025-01-01")
+MODEL = WELLS_OUT / "model.pkl"
+COX_PENALIZER = float(_get("COX_PENALIZER", "0.01"))
+HORIZON_DAYS = int(_get("HORIZON_DAYS", "90"))
+TOP_K = int(_get("TOP_K", "50"))
+BOOTSTRAP_DRAWS = int(_get("BOOTSTRAP_DRAWS", "200"))
+RANDOM_SEED = int(_get("RANDOM_SEED", "42"))
+PH_TEST_ALPHA = float(_get("PH_TEST_ALPHA", "0.01"))
+CALIBRATION_BINS = int(_get("CALIBRATION_BINS", "10"))
+INDEPENDENT_CHECK_DATE = _get("INDEPENDENT_CHECK_DATE", "2025-07-01")
+MIN_AT_RISK = int(_get("MIN_AT_RISK", "30"))
+
+
+# Economics: netback per barrel, source in docs/methods.md.
+OIL_VALUE_PER_BBL = float(_get("OIL_VALUE_PER_BBL", "51.04"))
+
+CSV_DECIMALS = int(_get("CSV_DECIMALS", "4"))
+
+
+def write_csv(df, path: Path) -> None:
+    """Write an output CSV with floats rounded, so reruns give identical files.
+
+    DuckDB sums in parallel, so the last binary digits of a float can change
+    between runs. Rounding hides that noise without changing any reported value.
+    """
+    out = df.copy()
+    floats = out.select_dtypes(include="float").columns
+    out[floats] = out[floats].round(CSV_DECIMALS)
+    out.to_csv(path, index=False)
+
+
 def rel(path: Path) -> str:
     """Path relative to the repo root, so printed output does not expose local folders."""
     try:

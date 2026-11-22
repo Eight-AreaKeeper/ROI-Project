@@ -321,9 +321,9 @@ def main() -> pd.DataFrame:
     mix = failure_mix(con)
 
     sizing = s.frame()
-    sizing.to_csv(config.OUTPUTS / "sizing.csv", index=False)
-    par.to_csv(config.OUTPUTS / "pareto.csv", index=False)
-    mix.to_csv(config.OUTPUTS / "failure_mix.csv", index=False)
+    config.write_csv(sizing, config.OUTPUTS / "sizing.csv")
+    config.write_csv(par, config.OUTPUTS / "pareto.csv")
+    config.write_csv(mix, config.OUTPUTS / "failure_mix.csv")
 
     compare(s)
     print(f"\nsizing: wrote sizing.csv, pareto.csv, failure_mix.csv to {config.rel(config.OUTPUTS)}/")

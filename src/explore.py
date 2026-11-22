@@ -38,7 +38,7 @@ def main() -> pd.DataFrame:
     con = config.connect()
     out = audit(con)
     path = config.OUTPUTS / "data_audit.csv"
-    out.to_csv(path, index=False)
+    config.write_csv(out, path)
 
     print("explore: rows per file")
     print(out.groupby("file")["rows"].first().to_string())

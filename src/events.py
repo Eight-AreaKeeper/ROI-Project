@@ -18,25 +18,69 @@ from src import config
 EVENT_COLS = ["uwi", "event_id", "area", "ev_start", "ev_end", "down_days",
               "lost_oil_m3", "matched_failure_log", "failure_type", "main_downtime_code"]
 
-# The raw failure_type field is free text ("Rod", "|Rod", "Parted rod", "PCP").
-# Grouping it into a few families makes recall by type readable.
-FAILURE_TYPE_SQL = """
-    case when lower(failure_type) like '%rod%' then 'Rods'
-         when lower(failure_type) like '%pump%' or lower(failure_type) like '%pcp%' then 'Pump'
-         when lower(failure_type) like '%tub%' or lower(failure_type) like '%tbg%'
-              or lower(failure_type) like '%packer%' then 'Tubing'
-         when failure_type in ('Surface Failure', 'Casing') then failure_type
-         else 'Other/Unknown' end
-"""
+# The raw failure_type field is free text. Each spelling found in the log is
+# mapped to a family explicitly, so a new spelling lands in Other where it is
+# visible, instead of being guessed into a family by a substring match.
+FAILURE_TYPE_MAP = {
+    "Rods": ["Rods", "Rod", "|Rod", "Parted rod", "Pared rod"],
+    "Tubing": ["Tubing", "TUBING", "Parted tbg", "Tubing Parted", "Hole in tubing",
+               "Hole in tbg colar", "Parted tubing Broke"],
+    "Pump": ["Pump", "PCP", "ES- PCP", "Broken insert"],
+    "Packer": ["Packer", "packer", "PACKER", "Packer  repair", "Hole in mandral packer"],
+}
+FAILURE_TYPE_SQL = "case " + " ".join(
+    "when failure_type in (" + ", ".join("'" + s.replace("'", "''") + "'" for s in spellings)
+    + f") then '{family}'"
+    for family, spellings in FAILURE_TYPE_MAP.items()
+) + " else 'Other' end"
+
+# Specific families win over Other when one well-day has two log records, so
+# the kept record carries the most informative label.
+FAMILY_PRIORITY_SQL = "case failure_type_family when 'Other' then 1 else 0 end"
 
 
 def register_fails(con) -> None:
     con.execute(f"""
     create or replace view fails_typed as
-    select uwi, failure_start_date::date as fdate, failure_type as failure_type_raw,
-           {FAILURE_TYPE_SQL} as failure_type
-    from fails
+    with typed as (
+        select uwi, failure_start_date::date as fdate, failure_type as failure_type_raw,
+               {FAILURE_TYPE_SQL} as failure_type_family
+        from fails
+    )
+    -- One logged failure per well per day: the log holds a few same-day
+    -- double entries, which would otherwise count one failure twice in recall.
+    select uwi, fdate, failure_type_raw, failure_type_family as failure_type
+    from typed
+    qualify row_number() over (partition by uwi, fdate
+                               order by {FAMILY_PRIORITY_SQL}, failure_type_family,
+                                        failure_type_raw) = 1
     """)
+
+
+def log_fails_cleaning(con) -> None:
+    """Append the failure-log rules to cleaning_log.csv, which clean.py creates."""
+    raw = con.sql("select count(*) from fails").fetchall()[0][0]
+    kept = con.sql("select count(*) from fails_typed").fetchall()[0][0]
+    mix = con.sql(f"""
+        select {FAILURE_TYPE_SQL} as family, count(*) as n,
+               count(*) filter (where failure_type is distinct from
+                                ({FAILURE_TYPE_SQL})) as renamed
+        from fails group by 1 order by 1
+    """).df()
+    rows = [{"step": "failure_log", "rule": f"failure_type mapped to {r.family}", "column": "failure_type",
+             "rows_affected": int(r.renamed), "rows_after": raw,
+             "note": f"{int(r.n)} records in family; rows_affected = spellings changed"}
+            for r in mix.itertuples()]
+    rows.append({"step": "failure_log", "rule": "drop same-well same-day duplicate records", "column": "*",
+                 "rows_affected": raw - kept, "rows_after": kept,
+                 "note": "used for validation only; keeps the most specific failure type"})
+    path = config.OUTPUTS / "cleaning_log.csv"
+    log = pd.read_csv(path) if path.exists() else pd.DataFrame()
+    # Replace earlier failure-log rows so rerunning this step alone does not
+    # append the same rules twice.
+    if not log.empty:
+        log = log[log.step != "failure_log"]
+    config.write_csv(pd.concat([log, pd.DataFrame(rows)], ignore_index=True), path)
 
 
 def build_events(con, gap_days: int, table: str = "events") -> None:
@@ -180,6 +224,7 @@ def main() -> pd.DataFrame:
     config.ensure_dirs()
     con = config.connect()
     register_fails(con)
+    log_fails_cleaning(con)
 
     gap, alt = config.EVENT_GAP_DAYS, config.EVENT_GAP_DAYS_SENSITIVITY
     build_events(con, gap, "events")
@@ -196,7 +241,7 @@ def main() -> pd.DataFrame:
     # counts as whole numbers in the CSV.
     val[["numerator", "denominator"]] = val[["numerator", "denominator"]].astype("Int64")
     val_path = config.OUTPUTS / "event_validation.csv"
-    val.to_csv(val_path, index=False)
+    config.write_csv(val, val_path)
 
     def get(df, gap_days, metric, group="all"):
         r = df[(df.gap_days == gap_days) & (df.metric == metric) & (df.group == group)]
