@@ -44,6 +44,8 @@ An analytical dashboard (`app.py`, Streamlit) backed by a Cox survival model, an
 3. **Repair choice:** does a workover buy enough extra run time to pay for itself?
 4. **Watchlist:** active wells ranked by their risk of failing in the next 90 producing days.
 
+**The model.** We built a survival model (Cox proportional hazards) that gives every producing well a probability of failing again within the next 90 producing days. It reads what is known about the well today: failures in the past year, the length of its last run, how it was last repaired, pump speed, water cut and oil rate. It was trained on 6,917 runs between failures (2021 to 2024) and tested on 2025 to 2026 and on the official failure log. The scores rank a weekly watchlist, each well with an expected cost and a suggested repair.
+
 Dashboard pages: **Overview** · **What drives run life** (switchable run-life curves) · **Is a workover worth it?** (oil-price slider that redraws the payback chart) · **Watchlist** (ranked wells, pick one to see its last 12 months) · **Does it work?** (model against today's rule, plus limitations).
 
 ---

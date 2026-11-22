@@ -1,13 +1,13 @@
-"""Run Life dashboard. Layout and widgets only; numbers come from src/app_logic.py
-and every chart from src/plots.py. No number in this file is typed in.
+"""Run Life dashboard. Layout and widgets only; numbers come from src/app_logic.py,
+every chart from src/plots.py and the page building blocks from src/ui.py.
+No number in this file is typed in.
 
-    streamlit run app.py
-    streamlit run app.py -- then open ?page=watchlist to land on a page
+    streamlit run app.py          (add ?page=watchlist to the URL to land on a page)
 """
 import streamlit as st
 
 from src import app_logic as al
-from src import config, plots
+from src import config, plots, ui
 
 st.set_page_config(layout="wide", page_title="Run Life", page_icon="🛢️")
 
@@ -66,6 +66,11 @@ def numbers():
 
 
 @st.cache_data
+def model_facts():
+    return al.model_facts(model(), runs(), al.as_of(watchlist()))
+
+
+@st.cache_data
 def rpm_range():
     return al.rpm_range(runs())
 
@@ -79,21 +84,12 @@ def chart(fig):
     st.plotly_chart(fig, width="stretch")
 
 
-def page_top(header, so_what):
-    st.header(header)
-    st.info(f"**So what:** {so_what}")
-
-
-def goto(page):
-    st.session_state["page"] = page
-
-
 PAGES = {"summary": "Summary", "problem": "The problem", "drivers": "What drives failure",
          "workover": "Is a workover worth it?", "watchlist": "Watchlist", "proof": "Does it work?"}
 
 # A ?page= link lands on that page; used for shared links and screenshots.
-if "page" not in st.session_state:
-    st.session_state["page"] = PAGES.get(st.query_params.get("page", "summary"), "Summary")
+if ui.PAGE_KEY not in st.session_state:
+    st.session_state[ui.PAGE_KEY] = PAGES.get(st.query_params.get("page", "summary"), "Summary")
 # The oil value is set on the workover page but also prices the watchlist and
 # the impact numbers, so it lives outside the slider's own state.
 st.session_state.setdefault("oil_value", float(config.OIL_VALUE_PER_BBL))
@@ -103,90 +99,107 @@ d, wl, n = outputs(), watchlist(), numbers()
 imp = impact(oil)
 aliases = al.make_aliases(wl, replay().uwi)
 k = config.TOP_K
-
-# Metric deltas here are comparisons ("vs 134 with none"), not changes, so
-# the up/down arrow would mislead; only the text is kept.
-st.markdown("<style>[data-testid='stMetricDelta'] svg{display:none}</style>", unsafe_allow_html=True)
+ui.base_style()
 
 with st.sidebar:
-    st.title("Run Life")
-    st.markdown(al.sidebar_story(n, imp))
-    st.divider()
-    page = st.radio("Page", list(PAGES.values()), key="page")
+    page = st.radio("Page", list(PAGES.values()), key=ui.PAGE_KEY)
     hide = st.toggle("Hide well IDs", value=True, key="hide_ids")
     st.caption(f"Data as of {al.as_of(wl):%B %d, %Y}")
 
+N = imp["workover_wells"]
+cut_pct = f"−{n['workover_risk_cut']:.0%}"
 
 # --------------------------------------------------------------------------
 if page == "Summary":
-    st.markdown("<style>.block-container{padding-top:2.2rem}</style>", unsafe_allow_html=True)
-    st.markdown(f"<p style='font-size:1.9rem;font-weight:700;line-height:1.25;margin:0 0 1rem'>"
-                f"{al.impact_headline(imp)}</p>", unsafe_allow_html=True)
-    p1, p2 = st.columns(2)
-    with p1.container(border=True):
-        st.markdown("**The problem**")
-        st.markdown(
-            f"Strathcona's {n['wells']:,} heavy-oil wells have about {round(n['failures_per_year'], -2):,.0f} "
-            f"downhole failures a year. {n['reactive_share']:.0%} of repair spend is reactive, and 10% of the "
-            f"wells cause {al.share_words(n['top10_lost_oil'])} the lost oil. Total: about ${imp['fleet_cost_per_year'] / 1e6:.0f}M a year.")
-    with p2.container(border=True):
-        st.markdown("**Our research question**")
-        st.markdown("*Which operating conditions and repair choices shorten or extend the time a heavy-oil PCP "
-                    "well runs between downhole failures, and is the extra run time from a more thorough repair "
-                    "worth its cost?*")
+    mf = model_facts()
+    ui.page_header("Run Life", "Predicting which heavy-oil wells will fail again, and which repair keeps them "
+                               "running longer.", top=True)
+    ui.kpi_strip([
+        ("Annual failure cost", f"~${imp['fleet_cost_per_year'] / 1e6:.0f}M",
+         f"{n['reactive_share']:.0%} of repair spend is reactive"),
+        ("Failures per year", f"~{round(n['failures_per_year'], -2):,.0f}", f"across {n['wells']:,} wells"),
+        ("Run life after repeat failures", f"{n['days_2plus']:.0f} vs {n['days_none']:.0f} days",
+         "2+ failures last year vs none"),
+        ("Workover target wells", f"~{N} wells", f"workover pays back in year 1 · {cut_pct} risk"),
+    ])
 
-    c1, c2, c3 = st.columns(3)
-    with c1.container(border=True):
-        st.metric("What drives failure", f"{n['days_2plus']:.0f} vs {n['days_none']:.0f} days")
-        st.markdown(f"Wells that failed 2+ times last year run {al.as_long(n['days_2plus'] / n['days_none'])} "
-                    "after a repair. Faster pumps and wetter wells also fail sooner.")
-        st.button("What drives failure →", key="go_drivers", on_click=goto, args=(PAGES["drivers"],))
-    with c2.container(border=True):
-        st.metric("Is a better repair worth it?", f"−{n['workover_risk_cut']:.0%} risk")
-        st.markdown(f"After a workover, wells fail {n['workover_risk_cut']:.0%} less often. It pays for itself "
-                    f"within a year on wells failing {plots.break_even_rate(payback_inputs(), oil):.0f}+ times "
-                    f"a year: ~{imp['workover_wells']} wells today.")
-        st.button("Is a workover worth it? →", key="go_workover", on_click=goto, args=(PAGES["workover"],))
-    with c3.container(border=True):
-        st.metric("Which wells next", f"{n['model_hits']:.0f} of {k}")
-        st.markdown(f"Of the {k} wells we flagged, {n['model_hits']:.0f} failed within 90 days, against "
-                    f"{n['rule_hits']:.0f} for today's rule and {n['random_hits']:.0f} at random.")
-        st.button("See the watchlist →", key="go_watchlist", on_click=goto, args=(PAGES["watchlist"],))
+    with st.container(border=True):
+        st.markdown("#### The model")
+        st.markdown(al.MODEL_SENTENCE)
+        steps = [
+            ("What it reads", "failures in the past year · length of the last run · how it was last repaired · "
+                              "pump speed, water cut, oil rate"),
+            ("How it learned", f"{mf['train_runs']:,} past runs between failures ({mf['train_years']}), "
+                               "keeping runs still going at the cut-off."),
+            ("What it gives", f"a {config.HORIZON_DAYS}-day failure probability per well, plus its main risk driver."),
+            ("What you do with it", "a ranked weekly watchlist with an expected cost and a suggested repair."),
+        ]
+        cols = st.columns([9, 1, 9, 1, 9, 1, 9], vertical_alignment="center")
+        for i, (head, body) in enumerate(steps):
+            with cols[2 * i].container(border=True, height=165):
+                st.markdown(f"**{head}**  \n{body}")
+            if i < len(steps) - 1:
+                cols[2 * i + 1].markdown("<div style='text-align:center;font-size:1.6rem'>→</div>",
+                                         unsafe_allow_html=True)
+        st.caption(f"Tested on {mf['test_years']} runs and the official failure log, neither used in training: "
+                   f"{n['model_hits']:.0f} of the top {k} failed within 90 days, against "
+                   f"{n['rule_hits']:.0f} for today's rule.")
 
-    st.markdown("**What to do on Monday**")
-    st.markdown(f"1. Review the top {k} wells on the watchlist every week.\n"
-                f"2. On the ~{imp['workover_wells']} flagged wells, do a workover at their next failure instead "
-                "of a rod-truck fix.\n"
-                "3. Check pump speed on high-RPM wells that keep failing.")
-    chart(plots.cost_per_year(d["sizing"], oil_value=oil))
+    left, right = st.columns([3, 2])
+    with left:
+        chart(plots.cost_per_year(d["sizing"], oil_value=oil))
+        st.markdown("**What to do on Monday**")
+        st.markdown(f"1. **Review the top {k}:** check the watchlist every week.\n"
+                    f"2. **Workover, not a quick fix:** on the ~{N} target wells, at their next failure.\n"
+                    "3. **Check pump speed:** on high-RPM wells that keep failing.")
+    with right:
+        ui.insight_card(f"{n['days_2plus']:.0f} vs {n['days_none']:.0f} days",
+                        f"Wells that failed 2+ times last year run {al.as_long(n['days_2plus'] / n['days_none'])} "
+                        "after a repair.", PAGES["drivers"], key="go_drivers")
+        ui.insight_card(f"{cut_pct} risk",
+                        f"Wells fail {n['workover_risk_cut']:.0%} less often after a workover; it pays back in "
+                        f"year 1 on the ~{N} target wells.", PAGES["workover"], key="go_workover")
+        ui.insight_card(f"{n['model_hits']:.0f} of {k}",
+                        f"Of our top {k} flagged wells, {n['model_hits']:.0f} failed within 90 days, vs "
+                        f"{n['rule_hits']:.0f} for today's rule.", PAGES["watchlist"],
+                        button="See the watchlist →", key="go_watchlist")
+
+    st.divider()
+    ui.footer(f"Research question: {al.RESEARCH_QUESTION}")
+    ui.footer("Method: survival analysis (Kaplan-Meier, Cox model) on events rebuilt from daily downtime codes. "
+              "Details on 'Does it work?'.")
 
 # --------------------------------------------------------------------------
 elif page == "The problem":
-    page_top(f"10% of wells cause {al.share_words(n['top10_lost_oil'])} the lost oil.",
-             "Focus on a short list of wells, not the whole fleet.")
-    m = st.columns(3)
-    m[0].metric("Failures per producing well-year", f"{n['failures_per_well_year']:.2f}",
-                f"1 every {n['producing_days_per_failure']:.0f} producing days", delta_color="off")
-    m[1].metric("Fail again within 30 days", f"{n['repeat_30d']:.0%}", "of repaired wells", delta_color="off")
-    m[2].metric("Reactive repair spend", f"{n['reactive_share']:.0%}",
-                f"of ${n['repair_spend'] / 1e6:.0f}M total repair spend", delta_color="off")
+    ui.page_header(f"10% of wells cause {al.share_words(n['top10_lost_oil'])} the lost oil.",
+                   "How often wells fail, what it costs, and where the damage sits.")
+    ui.kpi_strip([
+        ("Failures per producing well-year", f"{n['failures_per_well_year']:.2f}",
+         f"1 every {n['producing_days_per_failure']:.0f} producing days"),
+        ("Fail again within 30 days", f"{n['repeat_30d']:.0%}", "of repaired wells"),
+        ("Reactive repair spend", f"{n['reactive_share']:.0%}",
+         f"of ${n['repair_spend'] / 1e6:.0f}M total repair spend"),
+    ])
+    ui.so_what("Focus on a short list of wells, not the whole fleet.")
     chart(plots.concentration(d["pareto"]))
     with st.expander("More detail"):
         chart(plots.failures_per_year(events()))
         chart(plots.cost_per_year(d["sizing"], oil_value=oil))
+    with st.expander("Technical detail"):
+        st.markdown("- Failures are rebuilt from daily downtime codes: downhole days less than "
+                    f"{config.EVENT_GAP_DAYS + 1} days apart count as one failure.\n"
+                    "- Wells are ranked worst first by failures or by lost oil, over all in-scope producers.")
 
 # --------------------------------------------------------------------------
 elif page == "What drives failure":
-    page_top("Wells that keep failing, run fast or run wet fail sooner.",
-             "A well's last year predicts its next 90 days, so the history alone can rank wells.")
-    m = st.columns(3)
-    m[0].metric("2+ failures last year", f"{n['days_2plus']:.0f} days",
-                f"vs {n['days_none']:.0f} with none", delta_color="off",
-                help="Median producing days from a repair to the next failure")
-    m[1].metric("Fastest pumps", f"{n['days_fast']:.0f} days", f"vs {n['days_slow']:.0f} slowest",
-                delta_color="off", help="Fastest vs slowest quarter of pump speeds")
-    m[2].metric("After a workover", f"{n['days_workover']:.0f} days",
-                f"vs {n['days_rodtruck']:.0f} after rod truck only", delta_color="off")
+    ui.page_header("Wells that keep failing, run fast or run wet fail sooner.",
+                   "Producing days from a repair to the next failure, compared across groups of wells.")
+    ui.kpi_strip([
+        ("2+ failures last year", f"{n['days_2plus']:.0f} days", f"vs {n['days_none']:.0f} with none"),
+        ("Fastest pumps", f"{n['days_fast']:.0f} days", f"vs {n['days_slow']:.0f} slowest"),
+        ("After a workover", f"{n['days_workover']:.0f} days", f"vs {n['days_rodtruck']:.0f} after rod truck only"),
+    ])
+    ui.so_what("A well's last year predicts its next 90 days, so the history alone can rank wells.")
     labels = {"history": "Past failures", "rpm": "Pump speed", "water_cut": "Water cut", "repair": "Last repair"}
     by = st.radio("Compare wells by", list(labels), format_func=labels.get, horizontal=True, key="by")
     chart(plots.run_life(d["km_curves"], d["km_summary"], by))
@@ -197,55 +210,49 @@ elif page == "What drives failure":
         st.caption("How much each factor changes the risk of failure, holding the others fixed.")
     with st.expander("Technical detail"):
         st.markdown(
-            "- Run-life curves are Kaplan-Meier estimates. Runs still going when the data ends are censored, "
-            "so they count up to that day instead of being dropped. Group differences are tested with the "
-            "log-rank test (all p < 0.001).\n"
-            "- The factor chart is a Cox proportional-hazards model on runs before 2025, with yes/no factors "
-            "compared yes vs no and measured factors per one standard deviation. Hazard ratios are "
+            "- Run-life curves are Kaplan-Meier estimates; runs still going when the data ends are censored, "
+            "not dropped. Group differences are tested with the log-rank test (all p < 0.001).\n"
+            "- The factor chart is a Cox proportional-hazards model on runs before 2025. Hazard ratios are "
             "associations, not proof of cause.")
 
 # --------------------------------------------------------------------------
 elif page == "Is a workover worth it?":
-    page_top("A workover pays for itself on wells that fail "
-             f"{plots.break_even_rate(payback_inputs(), oil):.0f}+ times a year.",
-             f"Do a workover instead of a quick fix on the ~{imp['workover_wells']} flagged wells. "
-             "It's not worth it fleet-wide.")
-    # The callback stores the new value before the rerun, so the header and
-    # "So what" above already use it.
-    oil = st.slider("Oil value, C$/bbl", 35.0, 70.0, oil, key="oil",
-                    on_change=lambda: st.session_state.update(oil_value=st.session_state["oil"]))
     inputs = payback_inputs()
-    m = st.columns(3)
-    m[0].metric("Failure risk after a workover", f"−{n['workover_risk_cut']:.0%}", "vs rod truck only",
-                delta_color="off")
-    m[1].metric("Extra cost of a workover", f"+${n['workover_extra_cost'] / 1e3:.0f}k",
-                "vs a rod-truck job (median)", delta_color="off")
-    m[2].metric("Break-even", f"{plots.break_even_rate(inputs, oil):.1f} failures/yr",
-                f"at C${oil:.2f}/bbl", delta_color="off")
+    ui.page_header(f"A workover pays for itself on wells that fail {plots.break_even_rate(inputs, oil):.0f}+ "
+                   "times a year.", "Extra cost of a workover against the failures it avoids, at an oil value you set.")
+    ui.kpi_strip([
+        ("Failure risk after a workover", cut_pct, "vs rod truck only"),
+        ("Extra cost of a workover", f"+${n['workover_extra_cost'] / 1e3:.0f}k", "vs a rod-truck job (median)"),
+        ("Break-even", f"{plots.break_even_rate(inputs, oil):.1f} failures/yr", f"at C${oil:.2f}/bbl"),
+    ])
+    ui.so_what(f"Do a workover instead of a quick fix on the ~{N} target wells. It's not worth it fleet-wide.")
+    # The callback stores the new value before the rerun, so the header,
+    # tiles and "So what" above already use it.
+    st.slider("Oil value, C$/bbl", 35.0, 70.0, oil, key="oil",
+              on_change=lambda: st.session_state.update(oil_value=st.session_state["oil"]))
     chart(plots.workover_payback(inputs, oil_value=oil))
     with st.expander("More detail"):
         chart(plots.run_life(d["km_curves"], d["km_summary"], "repair"))
     with st.expander("Technical detail"):
-        imp_now = impact(oil)
         st.markdown(
             f"- One failure costs the median rod-truck repair (${inputs['rodtruck_cost']:,.0f}) plus the lost oil "
             f"(fleet mean {inputs['oil_m3_per_event']:.1f} m³ per failure × 6.29 bbl/m³ × the oil value).\n"
-            f"- A workover's extra cost is the median workover (${inputs['workover_cost']:,.0f}) minus the median "
-            f"rod-truck job. The Cox hazard ratio for a workover as the last repair is {inputs['hazard_ratio']:.3f}, "
-            f"so a well failing f times a year avoids f × {1 - inputs['hazard_ratio']:.2f} failures a year.\n"
+            f"- Extra cost = median workover (${inputs['workover_cost']:,.0f}) minus median rod-truck job. The Cox "
+            f"hazard ratio for a workover is {inputs['hazard_ratio']:.3f}, so a well failing f times a year avoids "
+            f"f × {1 - inputs['hazard_ratio']:.2f} failures a year.\n"
             "- Payback = extra cost / (avoided failures × cost per failure). This is an association from past "
             "runs, not a controlled trial.\n"
-            f"- Flagged wells: open wells whose last repair was not already a workover or new rod string and "
-            f"where one year of avoided failures (at their own lost oil) beats the extra cost: "
-            f"{imp_now['workover_wells']} wells, ~{imp_now['failures_avoided']:.0f} failures avoided a year.\n"
-            f"- Year-one net saving on those wells: about ${imp_now['net_savings_year1'] / 1e6:.1f}M after paying "
-            "for the workovers; the benefit continues after year one.")
+            f"- Target wells: open wells whose last repair was not already a workover or new rod string, and where "
+            f"one year of avoided failures at their own cost per failure beats the extra cost: {N} wells, "
+            f"~{imp['failures_avoided']:.0f} failures avoided a year.\n"
+            f"- Year-one net saving on those wells: about ${imp['net_savings_year1'] / 1e6:.1f}M after paying for "
+            "the workovers; the benefit continues after year one.")
 
 # --------------------------------------------------------------------------
 elif page == "Watchlist":
     ew = enriched_watchlist(oil)
-    # The header and tiles describe the filtered table, so they are drawn into
-    # this slot after the filters below have been read.
+    # The header, tiles and "So what" describe the filtered table, so they are
+    # drawn into this slot after the filters below have been read.
     head = st.container()
     with st.expander("Filters and sorting", expanded=False):
         f1, f2, f3 = st.columns([2, 1, 1])
@@ -256,17 +263,17 @@ elif page == "Watchlist":
     table = al.watchlist_table(ew, aliases, hide, areas, min_risk, sort)
     top = table.head(k)
     n_wo = int(top["suggested action"].str.startswith("At next failure: workover").sum())
+    cost_top = top["expected cost, 90 days"].sum()
     with head:
-        page_top(f"The {len(top)} wells to act on this week.",
-                 f"These {len(top)} wells carry ${top['expected cost, 90 days'].sum():,.0f} of expected failure "
-                 f"cost in the next 90 days; {n_wo} should get a workover at their next failure.")
-        m = st.columns(3)
-    m[0].metric("Wells flagged", f"{len(top)}", f"of {int(ew.risk_90.notna().sum()):,} wells scored",
-                delta_color="off")
-    m[1].metric("Expected failures", f"{top.risk_90.sum():.0f} of {len(top)}", "in the next 90 days",
-                delta_color="off")
-    m[2].metric("Expected failure cost", f"${top['expected cost, 90 days'].sum() / 1e3:,.0f}k",
-                f"next 90 days at C${oil:.0f}/bbl", delta_color="off")
+        ui.page_header(f"The {len(top)} wells to act on this week.",
+                       "Wells in a run today, ranked by expected failure cost over the next 90 producing days.")
+        ui.kpi_strip([
+            ("Wells flagged", f"{len(top)}", f"of {int(ew.risk_90.notna().sum()):,} wells scored"),
+            ("Expected failures", f"{top.risk_90.sum():.0f} of {len(top)}", "in the next 90 days"),
+            ("Expected failure cost", f"${cost_top / 1e3:,.0f}k", f"next 90 days at C${oil:.0f}/bbl"),
+        ])
+        ui.so_what(f"These {len(top)} wells carry ${cost_top:,.0f} of expected failure cost in the next 90 days; "
+                   f"{n_wo} should get a workover at their next failure.")
 
     money = st.column_config.NumberColumn(format="$%.0f")
     default_cols = ["well", "area", "risk_90", "expected cost, 90 days", "main driver", "suggested action"]
@@ -278,10 +285,9 @@ elif page == "Watchlist":
                      "expected cost, 90 days": money, "cost per failure": money,
                      "workover payback, yrs": st.column_config.NumberColumn(format="%.1f"),
                  })
-    st.caption(f"{len(table):,} wells. Sorted by {sort}. Risk = chance of failing in the next 90 producing days; "
-               f"expected cost = risk × cost of one failure at C${oil:.2f}/bbl. "
-               f"{int(wl.beyond_model_range.sum())} wells have run longer than the model has data for and "
-               "are not scored.")
+    st.caption(f"{len(table):,} wells, sorted by {sort}; expected cost = risk × cost of one failure at "
+               f"C${oil:.2f}/bbl. {int(wl.beyond_model_range.sum())} wells have run longer than the model has "
+               "data for and are not scored.")
     st.download_button("Download CSV", table.to_csv(index=False), "watchlist.csv", "text/csv")
 
     if len(table):
@@ -302,36 +308,43 @@ elif page == "Watchlist":
             rpm = st.slider("Pump speed after restart, rpm", lo, hi, min(max(now_rpm, lo), hi), 1.0, format="%.0f",
                             key=f"wi_rpm_{uwi}")  # per well, so it starts at that well's speed
             wi = al.whatif(run, model(), events(), end, repair, rpm).set_index("option")
-            w1, w2 = st.columns(2)
-            w1.metric(f"{repair} at {rpm:.0f} rpm", f"{wi.risk_90[repair]:.0%}",
-                      delta=f"{(wi.risk_90[repair] - wi.risk_90['baseline']) * 100:+.0f} pts",
-                      delta_color="inverse", help="Chance of failing in the first 90 producing days")
-            w2.metric(f"Rod truck only at {now_rpm:.0f} rpm", f"{wi.risk_90['baseline']:.0%}", "today's speed",
-                      delta_color="off")
+            ui.kpi_strip([
+                (f"{repair} at {rpm:.0f} rpm", f"{wi.risk_90[repair]:.0%}",
+                 f"{(wi.risk_90[repair] - wi.risk_90['baseline']) * 100:+.0f} pts vs rod truck at today's speed"),
+                (f"Rod truck only at {now_rpm:.0f} rpm", f"{wi.risk_90['baseline']:.0%}", "today's speed"),
+            ])
             chart(plots.repair_options(wi.reset_index()))
             st.markdown(al.whatif_note(ew.set_index("uwi").loc[uwi], payback_inputs()))
             st.caption("Model estimate based on similar past runs; associations, not guaranteed effects.")
         with st.expander("More detail"):
             chart(plots.well_history(well_daily(uwi, end), al.well_events(events(), uwi, end)))
             chart(plots.risk_distribution(wl, top_n=k))
+    with st.expander("Technical detail"):
+        st.markdown(
+            "- Risk is the model's chance of failing within the next 90 producing days, given the producing days "
+            "the well has already run.\n"
+            "- The main driver is the measured factor adding most to this well's risk; the suggested action is "
+            "the first matching rule: workover if it pays back within 1.5 years, review pump speed, pre-plan a "
+            "crew at 70%+ risk, else monitor.")
 
 # --------------------------------------------------------------------------
 elif page == "Does it work?":
-    page_top(f"On failures it never saw, our top {k} caught {n['model_hits']:.0f}; "
-             f"today's rule caught {n['rule_hits']:.0f}.",
-             f"Same {k} well visits, about {imp['extra_hits']:.0f} more of the right wells: "
-             f"{imp['lift_pct']:.0%} better targeting.")
-    m = st.columns(3)
-    m[0].metric("Our model", f"{n['model_hits']:.0f} of {k}", "failed within 90 days", delta_color="off")
-    m[1].metric("Today's rule", f"{n['rule_hits']:.0f} of {k}",
-                f"range {n['rule_min']:.0f} to {n['rule_max']:.0f}", delta_color="off",
-                help="Most failures last year; many wells tie, so the result depends on which tied wells are picked")
-    m[2].metric("Random wells", f"{n['random_hits']:.0f} of {k}", "for comparison", delta_color="off")
+    mf = model_facts()
+    ui.page_header(f"On failures it never saw, our top {k} caught {n['model_hits']:.0f}; "
+                   f"today's rule caught {n['rule_hits']:.0f}.",
+                   "Our top 50 against today's rule, checked on the official failure log the model never used.")
+    ui.kpi_strip([
+        ("Our model", f"{n['model_hits']:.0f} of {k}", "failed within 90 days"),
+        ("Today's rule", f"{n['rule_hits']:.0f} of {k}", f"range {n['rule_min']:.0f} to {n['rule_max']:.0f}"),
+        ("Random wells", f"{n['random_hits']:.0f} of {k}", "for comparison"),
+    ])
+    ui.so_what(f"Same {k} well visits, about {imp['extra_hits']:.0f} more of the right wells: "
+               f"{imp['lift_pct']:.0%} better targeting.")
     chart(plots.model_vs_rule(d["model_eval"], "official"))
 
     st.subheader("Replay: what the watchlist would have said")
-    st.caption("Each date is after the model was built. Every open well is scored as it stood that day, "
-               "then checked against the official failure log for the next 90 days.")
+    st.caption("Each date is after the model was built; every open well is scored as it stood that day and "
+               "checked against the official log for the next 90 days.")
     summ, rp = d["replay_summary"], replay()
     dates = [str(x) for x in summ.date]
     day = st.select_slider("Check date", dates, value=dates[0], key="replay_date")
@@ -341,12 +354,11 @@ elif page == "Does it work?":
     with g1:
         chart(plots.replay_top50(top, top_n=k))
     with g2:
-        k1, k2, k3 = st.columns(3)
-        k1.metric("Our model", f"{r.model_top50_hits:.0f}")
-        k2.metric("Today's rule", f"{r.rule_top50_mean:.1f}",
-                  help=f"Average over tied wells; range {r.rule_top50_min:.0f} to {r.rule_top50_max:.0f}")
-        k3.metric("Random 50", f"{r.random_top50:.1f}")
-        st.caption(f"{int(r.wells):,} wells in a run on {day}; {r.base_rate:.0%} failed within 90 days.")
+        ui.kpi_strip([
+            ("Our model", f"{r.model_top50_hits:.0f}", f"of {k}"),
+            ("Today's rule", f"{r.rule_top50_mean:.1f}", f"range {r.rule_top50_min:.0f} to {r.rule_top50_max:.0f}"),
+            ("Random 50", f"{r.random_top50:.1f}", f"{r.base_rate:.0%} base rate"),
+        ])
         chart(plots.replay_trend(summ, top_n=k))
 
     with st.expander("More detail"):
@@ -357,14 +369,17 @@ elif page == "Does it work?":
         st.markdown("**How this runs in production**")
         st.markdown(al.PRODUCTION_NOTES)
     with st.expander("Technical detail"):
+        st.markdown(f"**Research question:** {al.RESEARCH_QUESTION}")
+        st.markdown(f"**The model:** {al.MODEL_SENTENCE}")
         st.markdown(
-            f"- **Time split:** the model is trained on runs that started before {config.TIME_CUT} and tested on "
-            f"the {n['test_runs']:,} runs that started after.\n"
+            f"- **Time split:** trained on {mf['train_runs']:,} runs that started before {config.TIME_CUT} "
+            f"(runs still open at the cut are censored there), tested on the {n['test_runs']:,} runs that "
+            "started after.\n"
             f"- **Ranking (C-index):** {n['c_index']:.3f} for the model vs {n['c_index_rule']:.3f} for today's rule.\n"
             f"- **Official-log check ({config.INDEPENDENT_CHECK_DATE}, {n['check_wells']} wells):** AUC "
             f"{n['auc']:.3f} vs {n['auc_rule']:.3f} for the rule.\n"
             f"- **Probability accuracy (Brier, 90 days):** {n['brier']:.3f} vs {n['brier_km']:.3f} for a flat "
-            "Kaplan-Meier rate (lower is better); calibration by risk decile is in More detail.\n"
+            "Kaplan-Meier rate (lower is better).\n"
             "- **Model:** Cox proportional hazards on pre-run features, scored as the chance of failing in the "
             "next 90 producing days given the days already survived.")
         chart(plots.model_vs_rule(d["model_eval"], "test"))

@@ -25,8 +25,8 @@ def test_page_opens(page):
     at = _open(page)
     assert not at.exception, at.exception
     if page == "Summary":
-        # The pitch headline is large markdown rather than a header.
-        assert any("Same crews, better targets" in m.value for m in at.markdown)
+        assert at.title[0].value == "Run Life"
+        assert not any("Same crews" in m.value for m in at.markdown)
     else:
         assert at.header[0].value
 
@@ -74,7 +74,15 @@ def test_no_jargon_outside_technical_detail():
     banned = ["kaplan", "hazard ratio", "cox", "c-index", "calibration", "censor"]
     for page in PAGES:
         at = _open(page)
-        visible = [e.value for e in [*at.header, *at.info, *at.metric, *at.caption]]
+        # The Summary footer names the method on purpose ("Method: ... Kaplan-Meier, Cox model").
+        captions = [c for c in at.caption if not c.value.startswith("Method:")]
+        visible = [e.value for e in [*at.header, *at.info, *at.metric, *captions]]
         visible += [m.label for m in at.metric]
         text = " ".join(str(v) for v in visible).lower()
         assert not [b for b in banned if b in text], (page, [b for b in banned if b in text])
+
+
+def test_sidebar_has_only_navigation():
+    at = _open("Summary")
+    assert len(at.sidebar.markdown) == 0
+    assert [r.key for r in at.sidebar.radio] == ["page"]

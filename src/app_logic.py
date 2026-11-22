@@ -302,23 +302,22 @@ def in_tens(share: float) -> str:
     return f"{round(share * 10):.0f} in 10"
 
 
-def sidebar_story(n: dict, imp: dict) -> str:
-    return (
-        f"**Problem**  \nHeavy-oil wells break down about {n['failures_per_well_year']:.0f} times a year, "
-        f"{in_tens(n['repeat_30d'])} break again within a month, and failures cost about "
-        f"${imp['fleet_cost_per_year'] / 1e6:.0f}M a year.\n\n"
-        "**Our question**  \nWhich conditions and repair choices make a well run longer between failures, "
-        "and is a better repair worth its cost?\n\n"
-        f"**Our answer**  \nRepeat-failure wells are predictable. A workover instead of a quick fix pays for "
-        f"itself on the worst ~{imp['workover_wells']} wells, and our watchlist finds "
-        f"{imp['lift_pct']:.0%} more failing wells than today's rule."
-    )
+RESEARCH_QUESTION = ("Which operating conditions and repair choices shorten or extend the time a heavy-oil "
+                     "PCP well runs between downhole failures, and is the extra run time from a more thorough "
+                     "repair worth its cost?")
+MODEL_SENTENCE = ("We built a survival model that gives every producing well a probability of failing again "
+                  "within the next 90 producing days, based on what we know about it today.")
 
 
-def impact_headline(imp: dict) -> str:
-    return (f"Same crews, better targets: our watchlist finds {imp['lift_pct']:.0%} more failing wells than "
-            f"today's rule, and fixing ~{imp['workover_wells']} repeat-failure wells properly avoids "
-            f"~{imp['failures_avoided']:.0f} failures a year.")
+def model_facts(bundle: dict, runs: pd.DataFrame, as_of_day: pd.Timestamp) -> dict:
+    """Training size and periods, read from the saved model and the run table."""
+    cut = pd.Timestamp(bundle["time_cut"])
+    return {
+        # Rows the model was actually fitted on (runs open at the cut are censored there).
+        "train_runs": int(len(bundle["model"].durations)),
+        "train_years": f"{runs.start_d.min().year} to {cut.year - 1}",
+        "test_years": f"{cut.year} to {as_of_day.year}",
+    }
 
 
 def share_words(share: float) -> str:
