@@ -111,11 +111,16 @@ def concentration(pareto, denominator="all_in_scope_producers"):
                   f"Wells ranked worst first, {n:,} in-scope producers")
 
 
+def annual_cost(sizing, oil_value=DEFAULT_OIL, years=YEARS):
+    """Reactive repair spend and lost-oil value per year, in C$ millions."""
+    s = sizing.set_index("metric").value
+    return (s["reactive_spend"] / years / 1e6,
+            s["downhole_lost_oil_bbl"] * oil_value / years / 1e6)
+
+
 def cost_per_year(sizing, oil_value=DEFAULT_OIL, years=YEARS):
     """Single stacked bar: reactive repair spend + lost oil value, $M/year."""
-    s = sizing.set_index("metric").value
-    repairs = s["reactive_spend"] / years / 1e6
-    oil = s["downhole_lost_oil_bbl"] * oil_value / years / 1e6
+    repairs, oil = annual_cost(sizing, oil_value, years)
     fig = go.Figure()
     for val, name, color in [(repairs, "reactive repairs", BLUE),
                              (oil, f"lost oil at C${oil_value:.0f}/bbl", ORANGE)]:
@@ -284,6 +289,12 @@ def payback_years(fails_per_year, workover_cost, rodtruck_cost, oil_m3_per_event
     return (workover_cost - rodtruck_cost) / saved_per_year, per_failure
 
 
+def break_even_rate(inputs, oil_value=DEFAULT_OIL):
+    """Failures per year at which a workover's extra cost pays back in one year."""
+    _, per_failure = payback_years([1.0], oil_value=oil_value, **inputs)
+    return (inputs["workover_cost"] - inputs["rodtruck_cost"]) / ((1 - inputs["hazard_ratio"]) * per_failure)
+
+
 def workover_payback(inputs, oil_value=DEFAULT_OIL, fleet_rate=2.15, max_rate=10):
     """Payback time against how often a well fails, with the 1-year line.
 
@@ -292,7 +303,7 @@ def workover_payback(inputs, oil_value=DEFAULT_OIL, fleet_rate=2.15, max_rate=10
     f = np.linspace(0.75, max_rate, 200)
     yrs, per_failure = payback_years(f, oil_value=oil_value, **inputs)
     extra = inputs["workover_cost"] - inputs["rodtruck_cost"]
-    be = extra / ((1 - inputs["hazard_ratio"]) * per_failure)   # rate where payback = 1 yr
+    be = break_even_rate(inputs, oil_value)
     fleet_yrs = payback_years([fleet_rate], oil_value=oil_value, **inputs)[0][0]
     fig = go.Figure()
     fig.add_hrect(y0=0, y1=1, fillcolor=AQUA, opacity=0.08, line_width=0)
