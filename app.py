@@ -63,7 +63,7 @@ def well_daily(uwi, end):
 
 
 def chart(fig):
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 
 PAGES = ["Overview", "What drives run life", "Is a workover worth it?", "Watchlist", "Does it work?"]
@@ -138,7 +138,7 @@ elif page == "Watchlist":
     sort = f3.radio("Sort by", list(al.SORTS), horizontal=True, key="sort")
     table = al.watchlist_table(ew, aliases, hide, areas, min_risk, sort)
     money = st.column_config.NumberColumn(format="dollar")
-    st.dataframe(table, hide_index=True, use_container_width=True, column_config={
+    st.dataframe(table, hide_index=True, width="stretch", column_config={
         "risk_90": st.column_config.ProgressColumn("90-day risk", format="%.2f", min_value=0.0, max_value=1.0),
         "expected cost, 90 days": money, "cost per failure": money,
         "workover payback, yrs": st.column_config.NumberColumn(format="%.1f"),
@@ -216,3 +216,6 @@ elif page == "Does it work?":
 
     with st.expander("Limitations"):
         st.markdown("\n".join(f"- {x}" for x in al.LIMITATIONS))
+
+    st.subheader("How this runs in production")
+    st.markdown(al.PRODUCTION_NOTES)

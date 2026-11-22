@@ -26,6 +26,17 @@ LIMITATIONS = [
 ]
 
 
+# Measured on a laptop on 2026-11-22: `python run_all.py` end to end, a cold
+# `score_wells.main()`, and the app's first page load in a fresh process.
+PRODUCTION_NOTES = """
+- **Weekly batch:** new daily data → `python run_all.py` → refreshed watchlist. One scheduled job, no new sensors or hardware.
+- **Speed:** the full pipeline runs in about 1.5 minutes (84 s) on 5 million well-days with DuckDB; scoring all 805 open wells takes about 2 s, and the app opens in about 2 s.
+- **Scales to:** more wells or areas with no code change (settings live in `.env`). The SQL steps port directly to Databricks or Spark, and a historian feed (for example Canary) can replace the parquet files.
+- **Cost to run:** a laptop or one small VM. The value side is about $40M a year of failure cost, half of it on the worst 10% of wells.
+- **Who uses it:** a production engineer reviews the top 50 weekly and books workovers on flagged wells at their next failure.
+- **Next steps:** confirm rebuilt events with field staff; pilot workover vs rod truck on watchlist wells; retrain quarterly.
+"""
+
 # --------------------------------------------------------------------------
 # Loading
 # --------------------------------------------------------------------------
