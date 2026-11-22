@@ -4,10 +4,11 @@
 
 | | |
 |---|---|
-| **Team** | [name], [name], [name], [name] |
+| **Team** | Byte Fight: Alec Ferrer, Nusrat Tabassum Anika, Oghenetano Ojekudo, Zhinan Dai |
 | **Solution form** | Analytical dashboard backed by a survival model |
-| **5-minute video** | [link] |
-| **Slides** | [docs/slides.pdf](docs/slides.pdf) |
+| **Slides** | [Google Slides](https://docs.google.com/presentation/d/1U50o5F3LQFfQnVLlqSyMyUr6qeUqL4kdHQcP6DT20mI/edit?usp=sharing) |
+
+**In one line:** our model ranks wells by their chance of failing in the next 90 days, and it caught 37 of 50 real failures on data it never saw, against 28 for the rule used today.
 
 ---
 
@@ -19,32 +20,32 @@
 
 ### Motivation
 
-Strathcona's 1,863 heavy-oil wells lift oil with progressing-cavity pumps driven by a rod string. When something downhole breaks, usually the rods, the well stops until a crew repairs it.
+Strathcona's 1,863 heavy-oil wells lift oil with progressing-cavity pumps (PCPs) driven by a rod string. When something downhole breaks, usually the rods, the well stops producing until a crew repairs it.
 
 - **Frequent:** 2.15 downhole failures per producing well-year, about 1,800 a year.
 - **Repeating:** 29% of repairs are followed by another failure within 30 days.
 - **Reactive:** 77% of rod-truck and workover spend ($164M of $213M) follows a failure.
-- **Costly:** about **$40M a year** in reactive repairs plus lost oil, and 10% of wells cause half the lost oil.
+- **Costly:** about **$40M a year** in reactive repairs plus lost oil. 10% of wells cause half the lost oil.
 
 ### Our solution
 
-**The model.** We built a survival model that gives every producing well a **probability of failing again within the next 90 producing days**, based on what is known about it today:
+**The model.** A survival model gives every producing well a **probability of failing again within the next 90 producing days**, using only what is known about it today:
 - failures in the past year
 - the length of its last run
 - how it was last repaired
 - pump speed, water cut and oil rate
 
-The scores feed a dashboard that ranks a weekly watchlist, each well with an expected cost, its main risk driver and a suggested repair. A what-if panel compares repair options for any well.
+**The dashboard.** The scores feed a weekly watchlist. Each well gets an expected failure cost, its main risk driver and a suggested repair. A what-if panel compares repair options for any well.
 
 ### Summary of findings
 
-1. **Wells that fail keep failing.** Wells with 2+ failures in the past year run a median **55 days** after a repair, against **134** for wells with none.
-2. **Faster and wetter wells fail sooner.** The median falls from 91 days in the slowest pumps to **56** in the fastest. Water cut above 90% gives 64 days, against 97 below 70%.
-3. **A thorough repair goes with longer runs.**
-   - After a workover, failure risk is **43% lower** (hazard ratio 0.57); after a new rod string, **56% lower** (0.44), holding other factors fixed.
+1. **Wells that fail keep failing.** Wells with 2+ failures in the past year run a median of **55 days** after a repair, against **134** for wells with none.
+2. **Faster and wetter wells fail sooner.** The median run falls from 91 days for the slowest pumps to **56** for the fastest. Wells with water cut above 90% run 64 days, against 97 below 70%.
+3. **A thorough repair goes with longer runs, but it only pays on the worst wells.**
+   - Holding other factors fixed, failure risk is **43% lower** after a workover (hazard ratio 0.57) and **56% lower** after a new rod string (0.44).
    - A workover costs about $29k more than a rod-truck job.
-   - It **pays back within a year on wells failing about 6+ times a year**: about 29 wells today. It is not worth it fleet-wide.
-4. **The model finds failing wells better than today's rule.** On the official failure log, which the model never saw, **37 of our top 50 wells failed within 90 days**, against 28 for the rule "most failures last year" and 16 for 50 wells at random.
+   - It **pays back within a year on wells that fail about 6 or more times a year**, about 29 wells today. It does not pay fleet-wide.
+4. **The model finds failing wells better than today's rule.** Checked against the official failure log, which the model never saw, **37 of our top 50 wells failed within 90 days**. Ranking by "most failures last year" caught 28, and 50 random wells caught 16.
 
 ---
 
@@ -69,16 +70,15 @@ streamlit run app.py              # the dashboard (local only; well IDs are hidd
 | `src/plots.py`, `src/app_logic.py`, `src/ui.py` | Charts, watchlist logic and UI helpers shared by the app and notebooks |
 | `notebooks/` | Exploration and the story notebook |
 | `outputs/*.csv` | Aggregate results (no well IDs) |
-| `docs/` | Slides, figures, full methods, AI disclosure |
+| `docs/` | Figures, full methods, AI disclosure |
 
-The raw data and all well-level files (`data/`, `*.parquet`, `outputs/wells/`, the fitted model) are excluded: the dataset is licensed for this datathon only.
+The raw data and all well-level files (`data/`, `*.parquet`, `outputs/wells/`, the fitted model) are not in this repo, because the dataset is licensed for this datathon only.
 
 ---
 
-## 3. Video and slides
+## 3. Slides
 
-- **5-minute summary video:** [link]
-- **Presentation slides:** [docs/slides.pdf](docs/slides.pdf)
+[Presentation slides (Google Slides)](https://docs.google.com/presentation/d/1U50o5F3LQFfQnVLlqSyMyUr6qeUqL4kdHQcP6DT20mI/edit?usp=sharing)
 
 ---
 
@@ -87,37 +87,44 @@ The raw data and all well-level files (`data/`, `*.parquet`, `outputs/wells/`, t
 ### Methods
 
 - **Scope.** Heavy-oil producing wells: 1,863 wells, 1.79M producing well-days, 2021-01-01 to 2026-10-26.
-- **Failure events.** A downhole failure is a day with downtime coded as downhole ("Downhole" or "Downhole Equipment", excluding disposal-well repairs). Down days 4 or fewer days apart merge into one event. The result is 10,548 events on 1,191 wells. We rebuilt events because the official failure log is incomplete: it starts in December 2021 and holds 2,873 records, far fewer than the failures the downtime codes show.
+- **Failure events.**
+  - A downhole failure is a day with downtime coded as downhole ("Downhole" or "Downhole Equipment", excluding disposal-well repairs).
+  - Down days 4 or fewer days apart merge into one event. This gives 10,548 events on 1,191 wells.
+  - We rebuilt events because the official failure log is incomplete: it starts in December 2021 and holds 2,873 records, far fewer than the downtime codes show.
 - **Runs.**
   - A run lasts from a restart to the next failure, counted in producing days, so shut-ins don't count.
   - Runs with no failure yet are kept as censored: we know they lasted *at least* that long. Survival analysis uses them instead of dropping them.
-  - The result is 10,364 runs.
-- **Features.** Only information known on the restart day: oil rate, water cut and pump speed from the 30 producing days before the failure; failures in the past year; previous run length; and repair type from the job records.
+  - This gives 10,364 runs.
+- **Features.** Only information known on the restart day:
+  - oil rate, water cut and pump speed over the 30 producing days before the failure;
+  - failures in the past year;
+  - previous run length;
+  - repair type, from the job records.
 - **Models.**
   - **Kaplan-Meier:** run life by group.
-  - **Cox proportional hazards:** the effect of each factor, holding the others fixed, with standard errors clustered by well.
-- **Scoring.** An open well's risk is conditional on how long it has already run: 1 − S(t + 90) / S(t).
+  - **Cox proportional hazards:** the effect of each factor with the others held fixed, with standard errors clustered by well.
+- **Scoring.** An open well's risk depends on how long it has already run: risk = 1 − S(t + 90) / S(t), where S is the survival curve and t is days run so far.
 - **Economics.**
   - Payback = extra workover cost ÷ (failures per year × 43% × cost of one failure).
-  - Cost of one failure = a rod-truck repair + lost oil at C$51.04/bbl, from Strathcona's Q3 2026 netback.
+  - Cost of one failure = a rod-truck repair + lost oil valued at C$51.04/bbl (Strathcona's Q3 2026 netback).
 
 ### Validation
 
 | Check | Result |
 |---|---|
 | Time split: train on runs before 2025-01-01 (6,917), test on 2025 to 2026 (3,446) | C-index **0.641** vs 0.603 for today's rule; AUC at 90 days **0.717** vs 0.659 |
-| Independent check: official failure log, never used in training, 806 wells scored on 2025-07-01 | Top 50: **37** failed vs 28 for the rule (range 21 to 36 over ties) and 16 at random |
+| Independent check: official failure log (never used in training), 806 wells scored on 2025-07-01 | Top 50: **37** failed, vs 28 for the rule (21 to 36 depending on how ties are broken) and 16 at random |
 | Replay on 4 dates (Jul 2025 to Apr 2026) | The model beats the rule's average on every date: 37, 33, 36, 30 vs 28, 26, 29, 25 (`outputs/replay_summary.csv`) |
 | Calibration | Predicted and observed 90-day failure shares agree within about 7 points in every risk decile |
 | Event rebuild vs official log | 77% of logged failures match a rebuilt event within 7 days (rods 82%); a 7-day merge gap gives 73% |
 
-**Limitations:**
-- Events are rebuilt from downtime codes, not a confirmed failure list.
+**Limitations**
+- Events are rebuilt from downtime codes, not taken from a confirmed failure list.
 - Costs are field estimates.
-- The workover effect is an association: wells chosen for workovers may differ in ways the data doesn't show.
-- The workover, pump speed, pump size, utilisation and previous-run effects change somewhat over a run, so their hazard ratios are averages.
+- The workover effect is an association, not proof of cause: wells chosen for workovers may differ in ways the data doesn't show.
+- The effects of workover, pump speed, pump size, utilisation and previous run length change somewhat over a run, so their hazard ratios are averages.
 
-**Future work:**
+**Future work**
 - Confirm events with field staff.
 - Pilot workovers on flagged wells.
 - Retrain quarterly on new data.
@@ -129,8 +136,8 @@ Full detail: [docs/methods.md](docs/methods.md).
 - Strathcona Resources Q3 2026 results (oil value per barrel)
 - DSMLC Datathon Dataset Handbook (PCP, rod string, downtime definitions)
 - [lifelines](https://lifelines.readthedocs.io/) (Kaplan-Meier, Cox model), scikit-learn, DuckDB, pandas, Plotly, Streamlit
-- Cox, D. R. (1972). Regression models and life-tables. *JRSS B*, 34(2), 187 to 220.
-- Kaplan, E. L. and Meier, P. (1958). Nonparametric estimation from incomplete observations. *JASA*, 53(282), 457 to 481.
+- Cox, D. R. (1972). Regression models and life-tables. *JRSS B*, 34(2), 187–220.
+- Kaplan, E. L. and Meier, P. (1958). Nonparametric estimation from incomplete observations. *JASA*, 53(282), 457–481.
 
 ### AI assistance
 
@@ -146,7 +153,7 @@ We used Claude (Anthropic): Claude in chat for planning and review, and Claude C
   - the oil value and payback formula
   - most of the code (pipeline, `plots.py`, app, tests)
   - first drafts of the docs
-- **Verification:**
+- **How we verified it:**
   - We reran the pipeline and checked every reported number against the output CSVs.
   - We validated events against the official log.
   - We caught and fixed one AI error: binary features had been standardised, which understated the workover effect (−24% instead of −43%).
