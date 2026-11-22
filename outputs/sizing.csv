@@ -1,37 +1,37 @@
 metric,value,unit,period,denominator,note
 events,10548.0,events,2021-01-01 to 2026-10-26,in-scope wells,rebuilt downhole events
 producing_well_days,1789018.0,well-days,2021-01-01 to 2026-10-26,in-scope wells,days with hours_on_prod > 0
-failures_per_well_year,2.1520297727580155,failures per well-year,2021-01-01 to 2026-10-26,producing well-years,fleet rate: events / (producing well-days / 365). This is the number to quote as a rate.
-producing_days_per_event,169.60731892301857,producing days per event,2021-01-01 to 2026-10-26,events,the same fleet rate expressed as exposure per failure (inverse of the rate)
+failures_per_well_year,2.152,failures per well-year,2021-01-01 to 2026-10-26,producing well-years,fleet rate: events / (producing well-days / 365). This is the number to quote as a rate.
+producing_days_per_event,169.6073,producing days per event,2021-01-01 to 2026-10-26,events,the same fleet rate expressed as exposure per failure (inverse of the rate)
 restarts_with_next_failure,9357.0,restarts,2021-01-01 to 2026-10-26,events with a later event on the same well,the last event on each well has no known next failure and is excluded
-quick_repeat_share_calendar,0.2882334081436358,share,2021-01-01 to 2026-10-26,restarts with a known next failure,next event starts within 30 calendar days of the previous event ending
-quick_repeat_share_producing,0.3024473656086352,share,2021-01-01 to 2026-10-26,restarts with a known next failure,fewer than or equal to 30 producing days between the two events
+quick_repeat_share_calendar,0.2882,share,2021-01-01 to 2026-10-26,restarts with a known next failure,next event starts within 30 calendar days of the previous event ending
+quick_repeat_share_producing,0.3024,share,2021-01-01 to 2026-10-26,restarts with a known next failure,fewer than or equal to 30 producing days between the two events
 median_failed_run_producing_days,60.0,producing days,2021-01-01 to 2026-10-26,runs that ended in a failure only,"MEDIAN OVER FAILED RUNS ONLY, biased short; not a fleet rate. Use failures_per_well_year for that."
 median_failed_run_calendar_days,62.0,calendar days,2021-01-01 to 2026-10-26,runs that ended in a failure only,"MEDIAN OVER FAILED RUNS ONLY, biased short; not a fleet rate."
 repair_jobs,14061.0,jobs,2021-01-01 to 2026-10-26,"Rod Truck, Workover",all jobs in these categories
 reactive_jobs,11312.0,jobs,2021-01-01 to 2026-10-26,repair jobs,in-scope downhole downtime on the same well in the 14 days up to and including job start
 planned_jobs,2749.0,jobs,2021-01-01 to 2026-10-26,repair jobs,no downhole downtime in the lookback window
-reactive_job_share,0.8044947016570656,share,2021-01-01 to 2026-10-26,repair jobs,
-repair_spend,212652408.35000002,"CAD (est., CAD assumed)",2021-01-01 to 2026-10-26,repair jobs,sum of field_est_total; zero-cost jobs kept in sums
-reactive_spend,164217276.14999998,"CAD (est., CAD assumed)",2021-01-01 to 2026-10-26,repair jobs,
-planned_spend,48435132.20000005,"CAD (est., CAD assumed)",2021-01-01 to 2026-10-26,repair jobs,
-reactive_spend_share,0.7722333239683714,share,2021-01-01 to 2026-10-26,repair spend,
+reactive_job_share,0.8045,share,2021-01-01 to 2026-10-26,repair jobs,
+repair_spend,212652408.35,"CAD (est., CAD assumed)",2021-01-01 to 2026-10-26,repair jobs,sum of field_est_total; zero-cost jobs kept in sums
+reactive_spend,164217276.15,"CAD (est., CAD assumed)",2021-01-01 to 2026-10-26,repair jobs,
+planned_spend,48435132.2,"CAD (est., CAD assumed)",2021-01-01 to 2026-10-26,repair jobs,
+reactive_spend_share,0.7722,share,2021-01-01 to 2026-10-26,repair spend,
 zero_cost_jobs,2264.0,jobs,2021-01-01 to 2026-10-26,repair jobs,field_est_total = 0; treated as missing for medians
 median_cost_reactive,7415.0,"CAD (est., CAD assumed)",2021-01-01 to 2026-10-26,reactive jobs with cost > 0,
 median_cost_planned,7424.125,"CAD (est., CAD assumed)",2021-01-01 to 2026-10-26,planned jobs with cost > 0,
 jobs_Rod Truck,9359.0,jobs,2021-01-01 to 2026-10-26,Rod Truck,
 reactive_jobs_Rod Truck,7800.0,jobs,2021-01-01 to 2026-10-26,Rod Truck,
-spend_Rod Truck,40704311.129999995,"CAD (est., CAD assumed)",2021-01-01 to 2026-10-26,Rod Truck,
+spend_Rod Truck,40704311.13,"CAD (est., CAD assumed)",2021-01-01 to 2026-10-26,Rod Truck,
 reactive_spend_Rod Truck,35380502.84,"CAD (est., CAD assumed)",2021-01-01 to 2026-10-26,Rod Truck,
 jobs_Workover,4702.0,jobs,2021-01-01 to 2026-10-26,Workover,
 reactive_jobs_Workover,3512.0,jobs,2021-01-01 to 2026-10-26,Workover,
-spend_Workover,171948097.22000003,"CAD (est., CAD assumed)",2021-01-01 to 2026-10-26,Workover,
+spend_Workover,171948097.22,"CAD (est., CAD assumed)",2021-01-01 to 2026-10-26,Workover,
 reactive_spend_Workover,128836773.31,"CAD (est., CAD assumed)",2021-01-01 to 2026-10-26,Workover,
-downhole_lost_oil_m3,208840.26275585577,m3,2021-01-01 to 2026-10-26,rebuilt downhole events,lost_oil_m3 on event down days only
-downhole_lost_oil_bbl,1313605.2527343328,bbl,2021-01-01 to 2026-10-26,rebuilt downhole events,6.29 bbl per m3
-all_downtime_lost_oil_m3,568031.1368619488,m3,2021-01-01 to 2026-10-26,"in-scope down days, all causes",includes long-term uneconomic shut-ins; contrast only
-downhole_share_of_lost_oil,0.36765636459575135,share,2021-01-01 to 2026-10-26,all in-scope lost oil,
-pareto_all_top10_failures,0.4075654152445961,share,2021-01-01 to 2026-10-26,all_in_scope_producers,"top 10% = 186 of 1863 wells, ranked by failures. Denominator: all_in_scope_producers."
-pareto_all_top10_lost_oil,0.5133613691059596,share,2021-01-01 to 2026-10-26,all_in_scope_producers,"top 10% = 186 of 1863 wells, ranked by lost_oil_m3. Denominator: all_in_scope_producers."
-pareto_event_top10_failures,0.2938945771710277,share,2021-01-01 to 2026-10-26,wells_with_at_least_one_event,"top 10% = 119 of 1191 wells, ranked by failures. Denominator: wells_with_at_least_one_event."
-pareto_event_top10_lost_oil,0.3945023142715791,share,2021-01-01 to 2026-10-26,wells_with_at_least_one_event,"top 10% = 119 of 1191 wells, ranked by lost_oil_m3. Denominator: wells_with_at_least_one_event."
+downhole_lost_oil_m3,208840.2628,m3,2021-01-01 to 2026-10-26,rebuilt downhole events,lost_oil_m3 on event down days only
+downhole_lost_oil_bbl,1313605.2527,bbl,2021-01-01 to 2026-10-26,rebuilt downhole events,6.29 bbl per m3
+all_downtime_lost_oil_m3,568031.1369,m3,2021-01-01 to 2026-10-26,"in-scope down days, all causes",includes long-term uneconomic shut-ins; contrast only
+downhole_share_of_lost_oil,0.3677,share,2021-01-01 to 2026-10-26,all in-scope lost oil,
+pareto_all_top10_failures,0.4076,share,2021-01-01 to 2026-10-26,all_in_scope_producers,"top 10% = 186 of 1863 wells, ranked by failures. Denominator: all_in_scope_producers."
+pareto_all_top10_lost_oil,0.5134,share,2021-01-01 to 2026-10-26,all_in_scope_producers,"top 10% = 186 of 1863 wells, ranked by lost_oil_m3. Denominator: all_in_scope_producers."
+pareto_event_top10_failures,0.2939,share,2021-01-01 to 2026-10-26,wells_with_at_least_one_event,"top 10% = 119 of 1191 wells, ranked by failures. Denominator: wells_with_at_least_one_event."
+pareto_event_top10_lost_oil,0.3945,share,2021-01-01 to 2026-10-26,wells_with_at_least_one_event,"top 10% = 119 of 1191 wells, ranked by lost_oil_m3. Denominator: wells_with_at_least_one_event."

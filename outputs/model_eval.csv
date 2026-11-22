@@ -1,0 +1,20 @@
+model,metric,value,ci_low,ci_high,n,note
+cox,c_index,0.6414,,,3446,
+baseline_a,c_index,0.6028,,,3446,rank by fails_prior_365 (operator rule today)
+baseline_b,c_index,0.5928,,,3446,rank by -prev_gap_days
+cox_minus_baseline_a,c_index_diff,0.0385,0.028,0.0495,869,200 bootstrap draws resampling wells
+cox,auc_90,0.7171,,,3098,runs with a known 90-day outcome
+baseline_a,auc_90,0.6585,,,3098,runs with a known 90-day outcome
+baseline_b,auc_90,0.6496,,,3098,runs with a known 90-day outcome
+cox,brier_90,0.2082,,,3098,runs with a known 90-day outcome
+baseline_c_km,brier_90,0.2414,,,3098,runs with a known 90-day outcome; predicts the training Kaplan-Meier rate 0.594 for every run
+cox,top50_hits,45.0,45.0,45.0,50,failed within 90 producing days
+baseline_a,top50_hits,44.5,42.0,46.0,50,"failed within 90 producing days; mean over tie orders: 32 tied at the cut-off for 12 slots, range 42 to 46 (ci_low/ci_high hold the range)"
+baseline_b,top50_hits,38.4444,34.0,40.0,50,"failed within 90 producing days; mean over tie orders: 27 tied at the cut-off for 7 slots, range 34 to 40 (ci_low/ci_high hold the range)"
+independent_check,wells,806.0,,,806,"official log, unseen labels"
+independent_check,wells_beyond_support,32.0,,,806,"official log, unseen labels; scored here, left blank on the watchlist"
+independent_check,base_rate,0.3189,,,806,"official log, unseen labels"
+cox,indep_auc_90,0.726,,,806,"official log, unseen labels"
+cox,indep_top50_hits,37.0,37.0,37.0,50,"official log, unseen labels"
+baseline_a,indep_auc_90,0.6745,,,806,"official log, unseen labels"
+baseline_a,indep_top50_hits,28.1053,21.0,36.0,50,"official log, unseen labels; mean over tie orders: 38 tied at the cut-off for 23 slots, range 21 to 36 (ci_low/ci_high hold the range)"
