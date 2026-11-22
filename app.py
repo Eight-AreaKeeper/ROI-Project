@@ -48,6 +48,11 @@ def enriched_watchlist(oil_value):
 
 
 @st.cache_data
+def rpm_range():
+    return al.rpm_range(runs())
+
+
+@st.cache_data
 def well_daily(uwi, end):
     return al.well_daily(uwi, end)
 
@@ -152,6 +157,25 @@ elif page == "Watchlist":
             chart(plots.well_outlook(al.well_survival(model(), run), elapsed, label=name))
         with c2:
             chart(plots.well_history(well_daily(uwi, end), al.well_events(events(), uwi, end)))
+
+        with st.container(border=True):
+            st.subheader(f"What if? Next repair on {name}")
+            lo, hi = rpm_range()
+            now_rpm = al.current_rpm(run, model())
+            w1, w2 = st.columns(2)
+            repair = w1.radio("Repair at the next failure", list(al.REPAIRS), horizontal=True, key="wi_repair")
+            rpm = w2.slider("Pump speed after restart, rpm", lo, hi, min(max(now_rpm, lo), hi), 1.0,
+                            key=f"wi_rpm_{uwi}")  # per well, so it starts at that well's speed
+            wi = al.whatif(run, model(), events(), end, repair, rpm).set_index("option")
+            m1, m2, m3 = st.columns([1, 1, 2])
+            m1.metric(f"90-day risk: {repair.lower()} at {rpm:.0f} rpm", f"{wi.risk_90[repair]:.0%}",
+                      delta=f"{(wi.risk_90[repair] - wi.risk_90['baseline']) * 100:+.0f} pts",
+                      delta_color="inverse")
+            m2.metric(f"Rod truck only at {now_rpm:.0f} rpm (today's speed)", f"{wi.risk_90['baseline']:.0%}")
+            with m3:
+                chart(plots.repair_options(wi.reset_index()))
+            st.markdown(al.whatif_note(ew.set_index("uwi").loc[uwi], payback_inputs()))
+            st.caption("Model estimate based on similar past runs; associations, not guaranteed effects.")
 
 # --------------------------------------------------------------------------
 elif page == "Does it work?":

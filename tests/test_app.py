@@ -39,3 +39,10 @@ def test_hide_ids_default_on():
     at = _open("Watchlist")
     assert at.sidebar.toggle(key="hide_ids").value is True
     assert all(o.startswith("Well ") for o in at.selectbox(key="well").options)
+
+
+def test_whatif_options():
+    at = _open("Watchlist")
+    for repair in ["Workover", "New rod string", "Rod truck only"]:
+        at.radio(key="wi_repair").set_value(repair).run()
+        assert not at.exception, at.exception

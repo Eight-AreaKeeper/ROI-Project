@@ -60,3 +60,17 @@ def test_enrich_on_real_watchlist():
     assert np.allclose(s.expected_cost_90, s.risk_90 * s.cost_per_failure)
     assert s.main_driver.isin(list(al.DRIVER_LABELS.values()) + [al.NO_DRIVER]).all()
     assert s.suggested_action.notna().all()
+
+
+@needs_outputs
+def test_workover_lowers_risk_for_every_well():
+    # The workover hazard ratio is below 1 (0.567), so for any well and any
+    # pump speed a workover must give a lower risk than rod truck only.
+    wl, runs, ev, bundle = al.load_watchlist(), al.load_runs(), al.load_events(), al.load_model()
+    lo, hi = al.rpm_range(runs)
+    as_of = al.as_of(wl)
+    for uwi in wl[wl.risk_90.notna()].uwi:
+        run = al.well_run(wl, runs, uwi)
+        for rpm in (lo, hi):
+            r = al.whatif(run, bundle, ev, as_of, "Workover", rpm).set_index("option").risk_90
+            assert r["Workover"] < r["Rod truck only"]

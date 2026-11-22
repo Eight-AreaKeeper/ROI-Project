@@ -196,6 +196,67 @@ def top_summary(table: pd.DataFrame, k: int = config.TOP_K) -> str:
             f"in the next {config.HORIZON_DAYS} days; {n_wo} flagged for a workover at next failure.")
 
 
+# --------------------------------------------------------------------------
+# What if?
+# --------------------------------------------------------------------------
+REPAIRS = {
+    "Rod truck only": dict(workover=0, rodtruck=1, new_string=0),
+    "Workover": dict(workover=1, rodtruck=0, new_string=0),
+    "New rod string": dict(workover=0, rodtruck=1, new_string=1),
+}
+BASELINE_REPAIR = "Rod truck only"
+
+
+def rpm_range(runs: pd.DataFrame) -> tuple[float, float]:
+    """5th to 95th percentile of training RPM: the range the model has seen plenty of."""
+    r = runs.loc[runs.split == "train", "rpm_pre30"]
+    return float(r.quantile(0.05)), float(r.quantile(0.95))
+
+
+def current_rpm(run_row: pd.DataFrame, bundle: dict) -> float:
+    rpm = run_row.rpm_pre30.iloc[0]
+    return float(bundle["medians"]["rpm_pre30"] if pd.isna(rpm) else rpm)
+
+
+def next_run(run_row: pd.DataFrame, events: pd.DataFrame, as_of: pd.Timestamp,
+             repair: str, rpm: float) -> pd.DataFrame:
+    """The run that would follow if the well failed today and got `repair`.
+
+    The failure that triggers the repair is added to the past-year count, and
+    the previous gap becomes this run's start-to-start span, the same
+    definition runs.py uses. Everything else stays at the well's current values.
+    """
+    r = run_row.copy()
+    ev_start = events.loc[(events.uwi == r.uwi.iloc[0]) & (events.event_id == r.event_id.iloc[0]), "ev_start"]
+    r["prev_gap_days"] = (as_of - pd.Timestamp(ev_start.iloc[0])).days
+    r["fails_prior_365"] = r.fails_prior_365 + 1
+    r["rpm_pre30"] = rpm
+    for k, v in REPAIRS[repair].items():
+        r[k] = v
+    return r
+
+
+def whatif(run_row: pd.DataFrame, bundle: dict, events: pd.DataFrame, as_of: pd.Timestamp,
+           repair: str, rpm: float) -> pd.DataFrame:
+    """90-day risk from restart for each repair option at the chosen RPM.
+
+    Rows: one per repair option, plus the rod-truck-only baseline at the
+    well's current RPM. `chosen` marks the selected option.
+    """
+    rows = {name: next_run(run_row, events, as_of, name, rpm) for name in REPAIRS}
+    rows["baseline"] = next_run(run_row, events, as_of, BASELINE_REPAIR, current_rpm(run_row, bundle))
+    x = scoring.Prep.from_state(bundle).transform(pd.concat(rows.values(), ignore_index=True))
+    risk = scoring.risk_within(bundle["model"], x, bundle["horizon_days"], 0.0)
+    return pd.DataFrame({"option": list(rows), "risk_90": risk,
+                         "chosen": [n == repair for n in rows]})
+
+
+def whatif_note(enriched_row: pd.Series, inputs: dict) -> str:
+    extra = inputs["workover_cost"] - inputs["rodtruck_cost"]
+    return (f"Extra cost ${extra:,.0f}; this well failed {int(enriched_row.fails_prior_365)} times in the past year; "
+            f"a workover pays back in {enriched_row.workover_payback_yrs:.1f} years.")
+
+
 def well_run(watchlist: pd.DataFrame, runs: pd.DataFrame, uwi: str) -> pd.DataFrame:
     """The well's open run with every model feature, plus its elapsed producing days."""
     w = watchlist[watchlist.uwi == uwi][["uwi", "run_start", "elapsed_prod_days", "risk_90"]]

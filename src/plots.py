@@ -375,6 +375,23 @@ def well_outlook(survival, elapsed_days, horizon=180, label="this well"):
                   height=340)
 
 
+def repair_options(df):
+    """One bar per repair option: 90-day risk from restart, chosen option in blue.
+
+    df: option, risk_90, chosen (from app_logic.whatif; a "baseline" row is ignored).
+    """
+    d = df[df.option != "baseline"].iloc[::-1]
+    fig = go.Figure(go.Bar(
+        y=d.option, x=d.risk_90 * 100, orientation="h",
+        marker_color=[BLUE if c else GREY_LIGHT for c in d.chosen],
+        text=[f"<b>{x:.0f}%</b>" for x in d.risk_90 * 100], textposition="outside", cliponaxis=False,
+        hovertemplate="%{y}: %{x:.0f}% chance of failing within 90 days<extra></extra>"))
+    fig.update_xaxes(title="chance of failing in the first 90 producing days", ticksuffix="%", range=[0, 100])
+    fig.update_yaxes(showgrid=False)
+    fig.update_layout(showlegend=False)
+    return _style(fig, "Risk after the next repair", "Same well, same pump speed, different repair", height=260)
+
+
 def well_history(daily, events=None):
     """Last 12 months of one well: oil rate, with downhole events shaded.
 
