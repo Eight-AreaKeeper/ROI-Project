@@ -1,0 +1,22 @@
+step,rule,column,rows_affected,rows_after,note
+load,raw daily_production,*,5075590,5075590,rows read
+dedupe,drop exact duplicate rows,*,29,5075561,duplicates are identical in every column
+null,"placeholder >= 99,999 set to null",tubing_pressure_kpa,10,5075561,"sensor placeholder, not a reading"
+null,"placeholder >= 99,999 set to null",casing_pressure_kpa,0,5075561,"sensor placeholder, not a reading"
+null,"placeholder >= 99,999 set to null",injection_pressure_kpa,0,5075561,"sensor placeholder, not a reading"
+null,"placeholder >= 99,999 set to null",hydraulic_pressure_psi,1,5075561,"sensor placeholder, not a reading"
+null,"placeholder >= 99,999 set to null",pcp_pump_rod_torque_ftlb,516,5075561,"sensor placeholder, not a reading"
+null,negative volume set to null,oil_produced_m3,3720,5075561,"allocation correction, not production"
+null,negative volume set to null,water_produced_m3,10282,5075561,"allocation correction, not production"
+null,negative volume set to null,gas_produced_e3m3,107,5075561,"allocation correction, not production"
+null,"rpm > 1,000 set to null",pcp_pump_rpm,6820,5075561,physically implausible
+null,"current > 1,000 A set to null",pcp_pump_electric_current_a,113,5075561,physically implausible
+null,efficiency outside 0..1.5 set to null,pump_efficiency_pct,22000,5075561,derived ratio broken by allocation noise
+flag,primary_fluid_type = Heavy Oil and flow_direction = production,in_scope,3149998,5075561,rows flagged true; no rows removed
+flag,"hours_down > 0 and downhole downtime code, excluding disposal-well repairs",is_downhole,126489,5075561,rows flagged true; all wells
+derive,hours_on_prod > 0,is_producing,3336701,5075561,rows flagged true
+derive,"water / (oil + water), null when the sum is 0",water_cut,1937473,5075561,rows with a non-null value
+derive,"oil_produced_m3 on producing days, else null",oil_rate_m3d,2313667,5075561,rows with a non-null value
+derive,displacement * rpm / 100,rated_throughput_m3d,2400701,5075561,rows with a non-null value
+derive,oil_rate_m3d / rated_throughput_m3d,pump_utilisation,1693269,5075561,rows with a non-null value
+write,daily_clean.parquet,*,5075561,5075561,no rows filtered

@@ -1,6 +1,26 @@
+# Licensed data: never commit. Public repo, and git history is permanent.
 data/
-outputs/wells/
 *.parquet
+*.pkl
+*.joblib
+
+# Well-level outputs identify real wells
+outputs/wells/
+
+# Local config
 .env
 .venv/
+venv/
+
+# Notebooks: strip output before committing, or keep them out entirely
+.ipynb_checkpoints/
+
+# Python
 __pycache__/
+*.py[cod]
+.pytest_cache/
+
+# OS and editor
+.DS_Store
+.vscode/
+.idea/
