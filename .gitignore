@@ -24,3 +24,6 @@ __pycache__/
 .DS_Store
 .vscode/
 .idea/
+
+# Local working folder for stage briefs and reference files
+stage2/
