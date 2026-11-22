@@ -489,6 +489,49 @@ def what_breaks(validation, gap_days=4):
                   "Logged failures since July 2025 with an event within 7 days", height=300)
 
 
+def replay_top50(df, top_n=50, per_row=10):
+    """The model's top-N wells on a past date as a grid, in rank order.
+
+    df: rank, risk, failed, label (well name or alias), for one date.
+    Orange squares failed within 90 days of the date; grey did not.
+    """
+    d = df.sort_values("rank").head(top_n).reset_index(drop=True)
+    col, row = d.index % per_row, d.index // per_row
+    hits = int(d.failed.sum())
+    fig = go.Figure(go.Scatter(
+        x=col, y=row, mode="markers",
+        marker=dict(symbol="square", size=34, color=np.where(d.failed == 1, ORANGE, GREY_LIGHT),
+                    line=dict(color=SURFACE, width=2)),
+        customdata=np.c_[d["rank"], d.label, d.risk * 100, np.where(d.failed == 1, "failed", "did not fail")],
+        hovertemplate=("#%{customdata[0]} %{customdata[1]}<br>risk %{customdata[2]:.0f}%"
+                       "<br>%{customdata[3]} within 90 days<extra></extra>")))
+    fig.update_xaxes(visible=False, range=[-0.6, per_row - 0.4])
+    fig.update_yaxes(visible=False, range=[(top_n - 1) // per_row + 0.6, -0.6])
+    fig.update_layout(showlegend=False)
+    return _style(fig, f"{hits} of our top {top_n} failed within 90 days",
+                  "Ranked left to right, top row first; orange = failed (official log)", height=330)
+
+
+def replay_trend(summary, top_n=50):
+    """Model vs today's rule top-N hits on every replay date, rule range shaded."""
+    s = summary.sort_values("date")
+    x = pd.to_datetime(s.date)
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=np.r_[x, x[::-1]], y=np.r_[s.rule_top50_max, s.rule_top50_min[::-1]], mode="lines", fill="toself",
+        fillcolor=GREY_LIGHT, opacity=0.5, line=dict(width=0), hoverinfo="skip", name="rule range (tie orders)"))
+    for col, name, color in [("rule_top50_mean", "today's rule (mean)", GREY),
+                             ("model_top50_hits", "our model", BLUE)]:
+        fig.add_trace(go.Scatter(
+            x=x, y=s[col], mode="lines+markers", name=name, line=dict(color=color, width=2.5),
+            marker=dict(size=9, color=color, line=dict(color=SURFACE, width=2)),
+            hovertemplate=f"%{{x|%b %d %Y}}: {name} %{{y:.1f}} of {top_n}<extra></extra>"))
+    fig.update_xaxes(tickformat="%b %Y", tickvals=x)
+    fig.update_yaxes(title=f"failures caught in the top {top_n}", range=[0, top_n])
+    return _style(fig, "The gap holds on every replay date",
+                  f"Top {top_n} on four dates after the training cut, official failure log", height=320)
+
+
 # ==========================================================================
 # Export the README / slide figures (no well IDs in any of these)
 # ==========================================================================

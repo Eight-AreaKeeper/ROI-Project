@@ -8,7 +8,7 @@ from __future__ import annotations
 import sys
 import time
 
-from src import clean, events, explore, runs, score_wells, sizing, train_eval
+from src import clean, events, explore, replay, runs, score_wells, sizing, train_eval
 
 STEPS = {
     "explore": explore.main,
@@ -18,6 +18,7 @@ STEPS = {
     "runs": runs.main,
     "train_eval": train_eval.main,
     "score_wells": score_wells.main,
+    "replay": replay.main,
 }
 
 

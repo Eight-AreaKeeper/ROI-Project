@@ -32,6 +32,11 @@ def events():
     return al.load_events()
 
 
+@st.cache_data
+def replay():
+    return al.load_replay()
+
+
 @st.cache_resource
 def model():
     return al.load_model()
@@ -64,7 +69,7 @@ def chart(fig):
 PAGES = ["Overview", "What drives run life", "Is a workover worth it?", "Watchlist", "Does it work?"]
 
 d, wl = outputs(), watchlist()
-aliases = al.make_aliases(wl)
+aliases = al.make_aliases(wl, replay().uwi)
 # The oil value is set on the workover page but also prices the watchlist, so
 # it is kept outside the slider's own state, which is dropped on other pages.
 st.session_state.setdefault("oil_value", float(config.OIL_VALUE_PER_BBL))
@@ -189,5 +194,25 @@ elif page == "Does it work?":
         chart(plots.calibration(d["calibration"]))
     with c2:
         chart(plots.what_breaks(d["event_validation"]))
+    st.subheader("Replay: what the watchlist would have said")
+    st.caption("Each date is after the training cut. Every open well is scored as it stood that day, "
+               "then checked against the official failure log for the next 90 days.")
+    summ, rp = d["replay_summary"], replay()
+    dates = [str(x) for x in summ.date]
+    day = st.select_slider("Check date", dates, value=dates[0], key="replay_date")
+    r = summ[summ.date.astype(str) == day].iloc[0]
+    top = rp[rp.date.astype(str) == day].assign(label=lambda x: al.show_id(x.uwi, aliases, hide))
+    g1, g2 = st.columns([3, 2])
+    with g1:
+        chart(plots.replay_top50(top, top_n=config.TOP_K))
+    with g2:
+        k1, k2, k3 = st.columns(3)
+        k1.metric("Our model", f"{r.model_top50_hits:.0f}")
+        k2.metric("Today's rule", f"{r.rule_top50_mean:.1f}",
+                  help=f"Mean over tie orders; range {r.rule_top50_min:.0f} to {r.rule_top50_max:.0f}")
+        k3.metric("Random 50", f"{r.random_top50:.1f}")
+        st.caption(f"{int(r.wells):,} wells in a run on {day}; {r.base_rate:.0%} failed within 90 days.")
+        chart(plots.replay_trend(summ, top_n=config.TOP_K))
+
     with st.expander("Limitations"):
         st.markdown("\n".join(f"- {x}" for x in al.LIMITATIONS))

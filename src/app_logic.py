@@ -51,6 +51,10 @@ def load_model() -> dict:
     return scoring.load_model()
 
 
+def load_replay() -> pd.DataFrame:
+    return pd.read_parquet(config.WELLS_OUT / "replay.parquet")
+
+
 def as_of(watchlist: pd.DataFrame) -> pd.Timestamp:
     return pd.Timestamp(watchlist.as_of.iloc[0])
 
@@ -72,9 +76,15 @@ def headline_metrics(sizing: pd.DataFrame, oil_value: float = config.OIL_VALUE_P
 # --------------------------------------------------------------------------
 # Well IDs
 # --------------------------------------------------------------------------
-def make_aliases(watchlist: pd.DataFrame) -> dict[str, str]:
-    """Stable "Well 001" names in watchlist rank order; unscored wells come last."""
+def make_aliases(watchlist: pd.DataFrame, other_uwis=()) -> dict[str, str]:
+    """Stable "Well 001" names in watchlist rank order; unscored wells come last.
+
+    Wells that appear elsewhere (such as the replay) but not on the current
+    watchlist are numbered after it, so watchlist names never shift.
+    """
     order = watchlist.sort_values("rank", na_position="last", kind="stable").uwi
+    extra = sorted(set(other_uwis) - set(order))
+    order = list(order) + extra
     width = max(3, len(str(len(order))))
     return {u: f"Well {i:0{width}d}" for i, u in enumerate(order, start=1)}
 

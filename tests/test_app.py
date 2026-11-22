@@ -46,3 +46,11 @@ def test_whatif_options():
     for repair in ["Workover", "New rod string", "Rod truck only"]:
         at.radio(key="wi_repair").set_value(repair).run()
         assert not at.exception, at.exception
+
+
+def test_replay_dates():
+    at = _open("Does it work?")
+    slider = at.select_slider(key="replay_date")
+    for day in slider.options:
+        at.select_slider(key="replay_date").set_value(day).run()
+        assert not at.exception, at.exception
