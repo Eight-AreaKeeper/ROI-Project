@@ -204,7 +204,7 @@ def run_life(km_curves, km_summary, by="history", max_days=365, show_ci=True):
     fig.update_xaxes(title="producing days since the repair", range=[0, max_days])
     fig.update_yaxes(title="wells still running", range=[0, 101], ticksuffix="%")
     _style(fig, f"Run life by {title.lower()}",
-           "Kaplan-Meier: runs still going when the data ends are counted, not dropped",
+           "Wells still running when the data ends count up to that day, not dropped",
            height=460)
     fig.update_layout(legend=dict(orientation="v", y=0.98, x=0.98, xanchor="right",
                                   yanchor="top", bgcolor="rgba(252,252,251,0.9)"))
@@ -253,7 +253,7 @@ def risk_drivers(cox, only_significant=False):
                      arrayminus=c.pct - c.lo, color=GREY, thickness=1.5, width=0),
         customdata=np.c_[c.hazard_ratio, c.ci_low, c.ci_high, scale],
         hovertemplate=("<b>%{y}</b><br>%{x:+.0f}% failure risk"
-                       "<br>hazard ratio %{customdata[0]:.2f} (%{customdata[1]:.2f} to %{customdata[2]:.2f})"
+                       "<br>risk x%{customdata[0]:.2f} (%{customdata[1]:.2f} to %{customdata[2]:.2f})"
                        "<br>%{customdata[3]}<extra></extra>")))
     for _, r in c[c.significant & (c.pct.abs() >= 20)].iterrows():
         fig.add_annotation(x=r.lo if r.pct < 0 else r.hi, y=r.label, text=f"<b>{r.pct:+.0f}%</b>",
@@ -264,7 +264,7 @@ def risk_drivers(cox, only_significant=False):
                      ticksuffix="%", range=[-75, 45])
     fig.update_yaxes(showgrid=False)
     return _style(fig, "What goes with shorter and longer runs",
-                  "Cox model, each factor holding the others fixed; grey = not significant",
+                  "Each factor with the others held fixed; grey = no clear effect",
                   height=60 + 34 * len(c))
 
 

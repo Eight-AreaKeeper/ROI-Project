@@ -218,6 +218,119 @@ def top_summary(table: pd.DataFrame, k: int = config.TOP_K) -> str:
 
 
 # --------------------------------------------------------------------------
+# The story: every number the app quotes, computed from the outputs
+# --------------------------------------------------------------------------
+def impact_summary(enriched: pd.DataFrame, model_eval: pd.DataFrame, cox: pd.DataFrame,
+                   payback_inputs: dict, oil_value: float, sizing: pd.DataFrame,
+                   exclude_thorough: bool = True) -> dict:
+    """Headline impact: better targeting, and workovers that pay back in year one.
+
+    A well is a workover candidate when one year of avoided failures is worth
+    more than the workover's extra cost:
+        net = fails_prior_365 x (1 - HR) x cost_per_failure - extra cost > 0
+    With exclude_thorough, wells whose last repair was already a workover or
+    a new rod string are left out, since "workover instead of a quick fix"
+    does not apply to them.
+    """
+    ev = model_eval.set_index(["model", "metric"]).value
+    k = config.TOP_K
+    model, rule = ev[("cox", f"indep_top{k}_hits")], ev[("baseline_a", f"indep_top{k}_hits")]
+    hr = payback_inputs["hazard_ratio"]
+    extra = payback_inputs["workover_cost"] - payback_inputs["rodtruck_cost"]
+    w = enriched
+    net = w.fails_prior_365 * (1 - hr) * w.cost_per_failure - extra
+    cand = net > 0
+    if exclude_thorough:
+        cand &= ~((w.workover == 1) | (w.new_string == 1))
+    repairs, oil = plots.annual_cost(sizing, oil_value)
+    return {
+        "lift_pct": float((model - rule) / rule),
+        "extra_hits": float(model - rule),
+        "workover_wells": int(cand.sum()),
+        "failures_avoided": float((w.fails_prior_365[cand] * (1 - hr)).sum()),
+        "net_savings_year1": float(net[cand].sum()),
+        "fleet_cost_per_year": float((repairs + oil) * 1e6),
+    }
+
+
+def story_numbers(d: dict[str, pd.DataFrame], payback_inputs: dict) -> dict:
+    """The comparison numbers the pages quote, read from the output files."""
+    s = d["sizing"].set_index("metric").value
+    km = d["km_summary"].set_index(["group_var", "group"]).median_prod_days
+    rpm = d["km_summary"][d["km_summary"].group_var == "rpm_quartile"]
+    rpm_lo = rpm.loc[rpm.group.map(lambda g: float(g.strip("(").split(",")[0])).idxmin(), "median_prod_days"]
+    rpm_hi = rpm.loc[rpm.group.map(lambda g: float(g.strip("(").split(",")[0])).idxmax(), "median_prod_days"]
+    ev = d["model_eval"].set_index(["model", "metric"])
+    k = config.TOP_K
+    rule = ev.loc[("baseline_a", f"indep_top{k}_hits")]
+    val = d["event_validation"]
+    recall = val[(val.metric == "log_to_event_recall") & (val.gap_days == config.EVENT_GAP_DAYS)
+                 & (val.group == "all")].value.iloc[0]
+    years = plots.YEARS
+    return {
+        "wells": int(d["pareto"].wells_in_population.iloc[0]),
+        "failures_per_year": float(s["events"] / years),
+        "failures_per_well_year": float(s["failures_per_well_year"]),
+        "producing_days_per_failure": float(s["producing_days_per_event"]),
+        "repeat_30d": float(s["quick_repeat_share_calendar"]),
+        "reactive_share": float(s["reactive_spend_share"]),
+        "repair_spend": float(s["repair_spend"]),
+        "top10_lost_oil": float(s["pareto_all_top10_lost_oil"]),
+        "days_2plus": float(km[("fails_prior_365", "2+")]),
+        "days_none": float(km[("fails_prior_365", "0")]),
+        "days_fast": float(rpm_hi), "days_slow": float(rpm_lo),
+        "days_workover": float(km[("repair_class", "workover")]),
+        "days_rodtruck": float(km[("repair_class", "rod truck only")]),
+        "workover_risk_cut": float(1 - payback_inputs["hazard_ratio"]),
+        "workover_extra_cost": float(payback_inputs["workover_cost"] - payback_inputs["rodtruck_cost"]),
+        "model_hits": float(ev.loc[("cox", f"indep_top{k}_hits"), "value"]),
+        "rule_hits": float(rule.value), "rule_min": float(rule.ci_low), "rule_max": float(rule.ci_high),
+        "random_hits": float(ev.loc[("independent_check", "base_rate"), "value"] * k),
+        "c_index": float(ev.loc[("cox", "c_index"), "value"]),
+        "c_index_rule": float(ev.loc[("baseline_a", "c_index"), "value"]),
+        "auc": float(ev.loc[("cox", "indep_auc_90"), "value"]),
+        "auc_rule": float(ev.loc[("baseline_a", "indep_auc_90"), "value"]),
+        "brier": float(ev.loc[("cox", "brier_90"), "value"]),
+        "brier_km": float(ev.loc[("baseline_c_km", "brier_90"), "value"]),
+        "test_runs": int(ev.loc[("cox", "c_index"), "n"]),
+        "check_wells": int(ev.loc[("independent_check", "wells"), "value"]),
+        "recall": float(recall),
+    }
+
+
+def in_tens(share: float) -> str:
+    return f"{round(share * 10):.0f} in 10"
+
+
+def sidebar_story(n: dict, imp: dict) -> str:
+    return (
+        f"**Problem**  \nHeavy-oil wells break down about {n['failures_per_well_year']:.0f} times a year, "
+        f"{in_tens(n['repeat_30d'])} break again within a month, and failures cost about "
+        f"${imp['fleet_cost_per_year'] / 1e6:.0f}M a year.\n\n"
+        "**Our question**  \nWhich conditions and repair choices make a well run longer between failures, "
+        "and is a better repair worth its cost?\n\n"
+        f"**Our answer**  \nRepeat-failure wells are predictable. A workover instead of a quick fix pays for "
+        f"itself on the worst ~{imp['workover_wells']} wells, and our watchlist finds "
+        f"{imp['lift_pct']:.0%} more failing wells than today's rule."
+    )
+
+
+def impact_headline(imp: dict) -> str:
+    return (f"Same crews, better targets: our watchlist finds {imp['lift_pct']:.0%} more failing wells than "
+            f"today's rule, and fixing ~{imp['workover_wells']} repeat-failure wells properly avoids "
+            f"~{imp['failures_avoided']:.0f} failures a year.")
+
+
+def share_words(share: float) -> str:
+    """ "half of" near 50%, otherwise the percentage, for sentences like "cause half the lost oil"."""
+    return "half" if 0.45 <= share <= 0.55 else f"{share:.0%} of"
+
+
+def as_long(ratio: float) -> str:
+    return "less than half as long" if ratio < 0.5 else f"{ratio:.0%} as long"
+
+
+# --------------------------------------------------------------------------
 # What if?
 # --------------------------------------------------------------------------
 REPAIRS = {

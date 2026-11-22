@@ -7,7 +7,8 @@ from conftest import REPO, needs_outputs
 from src import app_logic as al
 
 APP = str(REPO / "app.py")
-PAGES = ["Overview", "What drives run life", "Is a workover worth it?", "Watchlist", "Does it work?"]
+PAGES = ["Summary", "The problem", "What drives failure", "Is a workover worth it?", "Watchlist",
+         "Does it work?"]
 
 pytestmark = needs_outputs
 
@@ -23,7 +24,11 @@ def _open(page):
 def test_page_opens(page):
     at = _open(page)
     assert not at.exception, at.exception
-    assert at.header[0].value
+    if page == "Summary":
+        # The pitch headline is large markdown rather than a header.
+        assert any("Same crews, better targets" in m.value for m in at.markdown)
+    else:
+        assert at.header[0].value
 
 
 def test_select_well():
@@ -54,3 +59,22 @@ def test_replay_dates():
     for day in slider.options:
         at.select_slider(key="replay_date").set_value(day).run()
         assert not at.exception, at.exception
+
+
+def test_summary_is_default_and_cards_navigate():
+    at = AppTest.from_file(APP, default_timeout=120)
+    at.run()
+    assert at.sidebar.radio(key="page").value == "Summary"
+    at.button(key="go_watchlist").click().run()
+    assert not at.exception, at.exception
+    assert at.sidebar.radio(key="page").value == "Watchlist"
+
+
+def test_no_jargon_outside_technical_detail():
+    banned = ["kaplan", "hazard ratio", "cox", "c-index", "calibration", "censor"]
+    for page in PAGES:
+        at = _open(page)
+        visible = [e.value for e in [*at.header, *at.info, *at.metric, *at.caption]]
+        visible += [m.label for m in at.metric]
+        text = " ".join(str(v) for v in visible).lower()
+        assert not [b for b in banned if b in text], (page, [b for b in banned if b in text])

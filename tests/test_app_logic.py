@@ -8,6 +8,7 @@ import pytest
 from conftest import needs_outputs
 
 from src import app_logic as al
+from src import plots
 
 
 def test_expected_cost_is_risk_times_cost():
@@ -74,3 +75,34 @@ def test_workover_lowers_risk_for_every_well():
         for rpm in (lo, hi):
             r = al.whatif(run, bundle, ev, as_of, "Workover", rpm).set_index("option").risk_90
             assert r["Workover"] < r["Rod truck only"]
+
+
+EXPECTED_IMPACT = {"lift_pct": 0.32, "extra_hits": 9, "workover_wells": 58, "failures_avoided": 175,
+                   "net_savings_year1": 650_000, "fleet_cost_per_year": 40e6}
+
+
+def _impact(exclude_thorough):
+    d = al.load_outputs()
+    runs, ev, model = al.load_runs(), al.load_events(), al.load_model()
+    inputs = plots.payback_inputs(runs, ev, d["cox_results"])
+    w = al.enrich_watchlist(al.load_watchlist(), runs, ev, d["cox_results"], model, 51.04)
+    return al.impact_summary(w, d["model_eval"], d["cox_results"], inputs, 51.04, d["sizing"],
+                             exclude_thorough=exclude_thorough)
+
+
+@needs_outputs
+def test_impact_summary_matches_brief():
+    # The brief's expected workover numbers were computed over all open wells;
+    # the app's default also leaves out wells whose last repair was already
+    # thorough, which gives fewer wells (checked below).
+    got = _impact(exclude_thorough=False)
+    for key, exp in EXPECTED_IMPACT.items():
+        assert abs(got[key] - exp) <= 0.10 * exp, (key, got[key], exp)
+
+
+@needs_outputs
+def test_impact_excluding_thorough_is_a_subset():
+    all_wells, default = _impact(False), _impact(True)
+    assert 0 < default["workover_wells"] < all_wells["workover_wells"]
+    assert default["failures_avoided"] < all_wells["failures_avoided"]
+    assert default["lift_pct"] == all_wells["lift_pct"]
