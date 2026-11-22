@@ -114,6 +114,18 @@ def score_open_runs(bundle: dict, open_runs: pd.DataFrame) -> np.ndarray:
                        open_runs.elapsed_prod_days.to_numpy())
 
 
+def survival_curve(bundle: dict, run_row: pd.DataFrame, max_days: int) -> pd.Series:
+    """One run's survival S(t) on every producing day 0..max_days.
+
+    Built from the same step function as risk_within, so reading the curve at
+    elapsed and elapsed + horizon gives exactly the watchlist risk.
+    """
+    cph = bundle["model"]
+    ph = cph.predict_partial_hazard(Prep.from_state(bundle).transform(run_row)).iloc[0]
+    t = np.arange(0, max_days + 1)
+    return pd.Series(baseline_survival_at(cph, t) ** ph, index=t)
+
+
 def beyond_model_range(bundle: dict, elapsed) -> np.ndarray:
     """True where the scoring window runs past the model's data support.
 

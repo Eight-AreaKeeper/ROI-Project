@@ -274,13 +274,13 @@ def calibration(test: pd.DataFrame, h: int) -> pd.DataFrame:
     return pd.DataFrame(out)
 
 
-def independent_check(con, bundle: dict, runs: pd.DataFrame) -> list[dict]:
-    """Score wells in an open run on the check date against the official log.
+def score_check_date(con, bundle: dict, runs: pd.DataFrame, day: pd.Timestamp) -> pd.DataFrame:
+    """Every well in an open run on `day`: model risk, rule score and official-log label.
 
-    Scoring goes through the saved bundle and the shared scoring functions,
-    the same path score_wells.py uses, so this validates the watchlist itself.
+    Shared by the independent check and replay.py, so every check date is
+    scored the same way.
     """
-    day, h, k = pd.Timestamp(config.INDEPENDENT_CHECK_DATE), config.HORIZON_DAYS, config.TOP_K
+    h = config.HORIZON_DAYS
     open_runs = open_runs_at(con, runs, day)
 
     # Labels come from the official failure log, which neither the model nor
@@ -294,6 +294,17 @@ def independent_check(con, bundle: dict, runs: pd.DataFrame) -> list[dict]:
     open_runs["y"] = open_runs.uwi.isin(set(logged)).astype(int)
     open_runs["cox_p"] = score_open_runs(bundle, open_runs)
     open_runs["base_a"] = open_runs.fails_prior_365.astype(float)
+    return open_runs
+
+
+def independent_check(con, bundle: dict, runs: pd.DataFrame) -> list[dict]:
+    """Score wells in an open run on the check date against the official log.
+
+    Scoring goes through the saved bundle and the shared scoring functions,
+    the same path score_wells.py uses, so this validates the watchlist itself.
+    """
+    day, h, k = pd.Timestamp(config.INDEPENDENT_CHECK_DATE), config.HORIZON_DAYS, config.TOP_K
+    open_runs = score_check_date(con, bundle, runs, day)
 
     note = "official log, unseen labels"
 
