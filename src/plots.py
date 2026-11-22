@@ -371,8 +371,8 @@ def well_outlook(survival, elapsed_days, horizon=180, label="this well"):
     fig.update_xaxes(title="producing days from today", range=[0, horizon])
     fig.update_yaxes(title="chance it has failed", ticksuffix="%", range=[0, 100])
     fig.update_layout(showlegend=False)
-    return _style(fig, f"Outlook for {label}", f"Already running {elapsed_days:.0f} producing days",
-                  height=340)
+    return _style(fig, "From today: chance this well fails",
+                  f"{label}, already running {elapsed_days:.0f} producing days", height=340)
 
 
 def repair_options(df):

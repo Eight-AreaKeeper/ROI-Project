@@ -384,6 +384,13 @@ def whatif(run_row: pd.DataFrame, bundle: dict, events: pd.DataFrame, as_of: pd.
                          "chosen": [n == repair for n in rows]})
 
 
+def whatif_sentence(wi: pd.DataFrame) -> str:
+    """The three repair options' 90-day risks in one sentence; wi is whatif() indexed by option."""
+    r = wi.risk_90
+    return (f"If it fails and gets a rod-truck fix: {r['Rod truck only']:.0%} chance it fails again within "
+            f"{config.HORIZON_DAYS} days. Workover: {r['Workover']:.0%}. New rod string: {r['New rod string']:.0%}.")
+
+
 def whatif_note(enriched_row: pd.Series, inputs: dict) -> str:
     extra = inputs["workover_cost"] - inputs["rodtruck_cost"]
     return (f"Extra cost ${extra:,.0f}; this well failed {int(enriched_row.fails_prior_365)} times in the past year; "
